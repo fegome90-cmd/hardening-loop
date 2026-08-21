@@ -256,3 +256,56 @@ Toda desviación de las reglas de esta constitución debe cumplir los siguientes
 ### B. Selección de Versiones y Consulta Viva con Context7
 - **Prohibición de Suposiciones de Versión:** Toda adición o actualización de paquetes en `pyproject.toml` o uso de APIs externas debe verificarse previamente utilizando `context7` (`resolve-library-id` y `query-docs`).
 - **Eliminación de Alucinaciones de API:** Verificar firmas de funciones, opciones de configuración y compatibilidad con Python 3.10+ en la documentación oficial indexada por Context7 antes de consolidar código.
+
+---
+
+## 9. Protocolo de Comunicación Humana: "Cold Re-Entry" & Ergonomía Cognitiva
+
+Para mitigar la fatiga mental y el cambio de contexto en sesiones concurrentes:
+
+- **Recap Inicial Obligatorio:** Abrir todo mensaje de reporte, decisión o duda con 2–3 frases concisas explicando: qué se estaba trabajando, por qué y el estado exacto en el que queda.
+- **Lenguaje Directo y sin Jerga:** Prohibido usar nombres clave inventados o referencias implícitas ("la opción B de antes", "el fix previo"). Re-enunciar siempre la opción o componente en el lugar.
+- **Una Sola Pregunta/Decisión por Turno:** Si existen múltiples puntos de decisión, declararlo al inicio (*"Hay 3 decisiones pendientes; acá va la primera"*), presentar **únicamente la primera** y esperar la respuesta humana antes de presentar la siguiente. Prohibido volcar múltiples preguntas en un solo turno.
+- **Preguntas Autocontenidas:** Cada consulta debe incluir todo lo necesario para decidir sin forzar al humano a scrollear hacia arriba: contexto, opciones evaluadas, tradeoffs y recomendación técnica fundamentada.
+- **Anclaje de Trabajo:** Identificar siempre el proyecto, la rama o el archivo afectado al reportar estado.
+- **Cierre con Próxima Acción:** Concluir cada actualización con la única acción pendiente del humano, o declarar explícitamente que no se requiere acción alguna.
+
+---
+
+## 10. Protocolo de Ejecución Agéntica: Builder / Driver Split & Ciclo de Worktrees
+
+Para optimizar el consumo de tokens (~80% de ahorro) y evitar la contaminación de contexto:
+
+### A. Desacoplamiento Builder / Driver
+- **Los Builders nunca conducen el Gate:** El agente constructor implementa la solución, realiza los commits atómicos en su rama y cierra su tarea emitiendo un párrafo inmutable de `HANDOFF: INTENT` (resumen exhaustivo de qué cambió y por qué). Su transcripción pesada (150k–200k tokens) no se reenvía durante el ciclo de revisión.
+- **Driver Liviano por Worktree:** Un subagente o proceso liviano con contexto mínimo (~5k tokens) toma el handoff, ejecuta `make check`, valida schemas y responde a las validaciones de la Aduana.
+- **Regla de Parking ante Decisiones Humanas:** Si el gate detecta un hallazgo que requiere criterio humano, el driver hace **PARK**: cita el hallazgo verbatim y suspende la tarea para que el orquestador lo transmita al humano. El driver solo se reactiva una vez recibida la decisión.
+
+### B. Ciclo de Vida de Git Worktrees
+```bash
+# 1. Crear worktree aislado para una nueva tarea
+git worktree add ../hardening-<nombre-tarea> -b task/<nombre-tarea> base_branch
+
+# 2. Ejecutar mutaciones, TDD y gate de calidad dentro del worktree
+cd ../hardening-<nombre-tarea>
+make check
+
+# 3. Tras merge o consolidación, podar y limpiar el worktree
+cd ../hardening-loop
+git worktree remove ../hardening-<nombre-tarea>
+git branch -d task/<nombre-tarea>
+```
+
+---
+
+## 11. Criterio Operacional y Verificable de "DONE"
+
+Queda prohibido reportar una tarea como completada basándose en estimaciones o relato narrativo.
+
+Una tarea está **DONE** únicamente cuando:
+1. **Tests en Verde:** Suite completa de `pytest` ejecutada y aprobada al 100%.
+2. **Tipado Estricto:** `mypy src/ tests/` ejecutado con 0 errores (`Success: no issues found`).
+3. **Linter & Formato:** `ruff check` y `ruff format` ejecutados sin advertencias.
+4. **Schemas Fail-Closed:** Todo payload serializado supera la validación contra `schemas/*.schema.json`.
+5. **Evidencia Emitida:** Hash SHA-256 inmutable de entrada y salida registrado en el `EvidenceEnvelope`.
+6. **Workspace Limpio:** Cero archivos huérfanos, sin caches no ignorados y árbol de trabajo 100% higiénico.

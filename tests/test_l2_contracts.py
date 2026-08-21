@@ -1,13 +1,14 @@
 """Layer 2: Contract Invariants — State machine rules and fail-closed JSON schema enforcement."""
 
 import pytest
+
 from hardening_loop.models import HardeningState, WorkUnit
 from hardening_loop.schema_validator import SchemaValidationError, SchemaValidator
 from hardening_loop.states import InvalidStateTransitionError, StateMachine
 
 
 def test_state_machine_valid_progression():
-    wu = WorkUnit(work_unit_id="wu-01", target_path="src/", target_hash="0"*64, state=HardeningState.DRAFT)
+    wu = WorkUnit(work_unit_id="wu-01", target_path="src/", target_hash="0" * 64, state=HardeningState.DRAFT)
     assert wu.state == HardeningState.DRAFT
 
     StateMachine.transition(wu, HardeningState.AUDITING)
@@ -33,7 +34,7 @@ def test_state_machine_valid_progression():
 
 
 def test_state_machine_invalid_skips_fail_closed():
-    wu = WorkUnit(work_unit_id="wu-02", target_path="src/", target_hash="0"*64, state=HardeningState.DRAFT)
+    wu = WorkUnit(work_unit_id="wu-02", target_path="src/", target_hash="0" * 64, state=HardeningState.DRAFT)
 
     with pytest.raises(InvalidStateTransitionError):
         StateMachine.transition(wu, HardeningState.CANONICAL)
@@ -60,7 +61,7 @@ def test_envelope_schema_fail_closed():
             "duration_ms": 1.0,
             "checks": [],
             "status": "PASS",
-        }
+        },
     }
     with pytest.raises(SchemaValidationError):
         SchemaValidator.validate_or_raise("evidence_envelope", invalid_envelope)

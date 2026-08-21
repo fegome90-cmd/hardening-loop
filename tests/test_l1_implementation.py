@@ -1,7 +1,7 @@
 """Layer 1: Implementation Tests — Unit functionality, parsers, and serializers."""
 
-import json
 import tempfile
+
 from hardening_loop.admission import KnowledgeAdmissionGate
 from hardening_loop.cli import create_parser
 from hardening_loop.models import (
@@ -9,8 +9,6 @@ from hardening_loop.models import (
     FindingSeverity,
     compute_canonical_directory_digest,
     compute_execution_context_hash,
-    compute_lockfile_hash,
-    sha256_dict,
     sha256_text,
 )
 
@@ -22,7 +20,9 @@ def test_cli_parser_subcommands():
     assert args_run.target == "src/"
     assert args_run.phase == "all"
 
-    args_rev = parser.parse_args(["review", "evidence/test/candidate.yaml", "--admit", "--reviewer", "arch-01", "--notes", "LGTM"])
+    args_rev = parser.parse_args(
+        ["review", "evidence/test/candidate.yaml", "--admit", "--reviewer", "arch-01", "--notes", "LGTM"]
+    )
     assert args_rev.command == "review"
     assert args_rev.admit is True
     assert args_rev.reviewer == "arch-01"

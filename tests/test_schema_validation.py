@@ -1,16 +1,15 @@
 """Tests for Tier 2 Fail-Closed JSON Schema Validation."""
 
 import pytest
+
 from hardening_loop.models import (
     CanonicalEvidence,
     EvidenceEnvelope,
     HardeningState,
-    KnowledgeCandidate,
     PhaseName,
     RuntimeReceipt,
     VerificationStatus,
     WorkUnit,
-    compute_execution_context_hash,
     utc_now_iso,
 )
 from hardening_loop.schema_validator import SchemaValidationError, SchemaValidator
@@ -58,7 +57,7 @@ def test_invalid_evidence_envelope_hash_fails_closed():
             "duration_ms": 1.23,
             "checks": ["check 1"],
             "status": "PASS",
-        }
+        },
     }
     with pytest.raises(SchemaValidationError) as excinfo:
         SchemaValidator.validate_or_raise("evidence_envelope", invalid_env)

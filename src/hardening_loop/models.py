@@ -1,15 +1,16 @@
 """Core domain models and schema types for Algorithmic Code Hardening Loop."""
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+
 import hashlib
 import json
 import os
 import platform
 import subprocess
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any
 
 
 def utc_now_iso() -> str:
@@ -20,12 +21,12 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def sha256_dict(data: Dict[str, Any]) -> str:
+def sha256_dict(data: dict[str, Any]) -> str:
     canonical_json = json.dumps(data, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 
-def get_git_commit_hash(cwd: Optional[str] = None) -> str:
+def get_git_commit_hash(cwd: str | None = None) -> str:
     """Retrieves current Git commit hash or returns uncommitted-dirty."""
     try:
         res = subprocess.run(
@@ -42,18 +43,18 @@ def get_git_commit_hash(cwd: Optional[str] = None) -> str:
     return "git-unavailable-or-dirty"
 
 
-def compute_lockfile_hash(base_dir: Optional[str] = None) -> str:
+def compute_lockfile_hash(base_dir: str | None = None) -> str:
     """Computes SHA-256 digest of dependency lockfile (uv.lock or pyproject.toml)."""
     search_dir = base_dir or os.getcwd()
     for fname in ["uv.lock", "pyproject.toml", "requirements.txt"]:
         fpath = os.path.join(search_dir, fname)
         if os.path.exists(fpath):
-            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+            with open(fpath, encoding="utf-8", errors="ignore") as f:
                 return sha256_text(f.read())
     return "no-lockfile-detected"
 
 
-def compute_execution_context_hash(base_dir: Optional[str] = None, schema_version: str = "v0.1-beta") -> str:
+def compute_execution_context_hash(base_dir: str | None = None, schema_version: str = "v0.1-beta") -> str:
     """Computes a deterministic digest of the complete execution context."""
     context_data = {
         "git_commit": get_git_commit_hash(base_dir),
@@ -72,11 +73,11 @@ def compute_canonical_directory_digest(target_path: str) -> str:
         return sha256_text("")
 
     if os.path.isfile(target_path):
-        with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(target_path, encoding="utf-8", errors="ignore") as f:
             return sha256_text(f.read())
 
     # Canonical Directory Digest over recursive sorted files
-    file_hashes: Dict[str, str] = {}
+    file_hashes: dict[str, str] = {}
     for root, dirs, files in os.walk(target_path):
         dirs.sort()
         for file in sorted(files):
@@ -85,7 +86,7 @@ def compute_canonical_directory_digest(target_path: str) -> str:
             full_path = os.path.join(root, file)
             rel_path = os.path.relpath(full_path, target_path)
             try:
-                with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(full_path, encoding="utf-8", errors="ignore") as f:
                     file_hashes[rel_path] = sha256_text(f.read())
             except OSError:
                 continue
@@ -158,9 +159,9 @@ class Finding:
     category: FindingCategory
     severity: FindingSeverity
     description: str
-    target_lines: List[int] = field(default_factory=list)
+    target_lines: list[int] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "category": self.category.value if isinstance(self.category, Enum) else self.category,
             "severity": self.severity.value if isinstance(self.severity, Enum) else self.severity,
@@ -175,9 +176,9 @@ class RuleProposal:
     title: str
     enforcement_mechanism: str
     rationale: str
-    suggested_fix: Optional[str] = None
+    suggested_fix: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "rule_id": self.rule_id,
             "title": self.title,
@@ -193,21 +194,23 @@ class KnowledgeCandidate:
     observation: str
     finding: Finding
     rule_proposal: RuleProposal
-    evidence_references: List[str]
+    evidence_references: list[str]
     admission_status: AdmissionStatus = AdmissionStatus.PENDING_REVIEW
-    reviewer: Optional[str] = None
-    reviewed_at: Optional[str] = None
-    review_notes: Optional[str] = None
+    reviewer: str | None = None
+    reviewed_at: str | None = None
+    review_notes: str | None = None
     created_at: str = "CANONICAL_EPOCH"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "candidate_id": self.candidate_id,
             "observation": self.observation,
             "finding": self.finding.to_dict(),
             "rule_proposal": self.rule_proposal.to_dict(),
             "evidence_references": self.evidence_references,
-            "admission_status": self.admission_status.value if isinstance(self.admission_status, Enum) else self.admission_status,
+            "admission_status": self.admission_status.value
+            if isinstance(self.admission_status, Enum)
+            else self.admission_status,
             "reviewer": self.reviewer,
             "reviewed_at": self.reviewed_at,
             "review_notes": self.review_notes,
@@ -216,12 +219,14 @@ class KnowledgeCandidate:
 
     def validate_schema(self) -> None:
         from .schema_validator import SchemaValidator
+
         SchemaValidator.validate_or_raise("knowledge_candidate", self.to_dict())
 
 
 @dataclass
 class CanonicalEvidence:
     """Deterministic, hashable core of the evidence envelope."""
+
     evidence_id: str
     phase: PhaseName
     input_hash: str
@@ -229,9 +234,9 @@ class CanonicalEvidence:
     method_version: str
     schema_version: str
     execution_context_hash: str
-    artifact_payload: Dict[str, Any]
+    artifact_payload: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "evidence_id": self.evidence_id,
             "phase": self.phase.value if isinstance(self.phase, Enum) else self.phase,
@@ -250,14 +255,15 @@ class CanonicalEvidence:
 @dataclass
 class RuntimeReceipt:
     """Non-deterministic runtime telemetry & observability (excluded from canonical hash)."""
+
     producer: str
     timestamp: str
     duration_ms: float
-    checks: List[str]
+    checks: list[str]
     status: VerificationStatus
-    error: Optional[str] = None
+    error: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "producer": self.producer,
             "timestamp": self.timestamp,
@@ -270,16 +276,17 @@ class RuntimeReceipt:
 
 @dataclass
 class EvidenceArtifactHelper:
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
 
 
 @dataclass
 class EvidenceEnvelope:
     """Full envelope coupling deterministic canonical evidence with execution telemetry."""
+
     canonical: CanonicalEvidence
     runtime: RuntimeReceipt
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "canonical_evidence": self.canonical.to_dict(),
             "runtime_receipt": self.runtime.to_dict(),
@@ -330,10 +337,10 @@ class WorkUnit:
     state: HardeningState = HardeningState.DRAFT
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)
-    phases_executed: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    phases_executed: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "work_unit_id": self.work_unit_id,
             "target_path": self.target_path,
@@ -347,4 +354,5 @@ class WorkUnit:
 
     def validate_schema(self) -> None:
         from .schema_validator import SchemaValidator
+
         SchemaValidator.validate_or_raise("work_unit", self.to_dict())

@@ -1,9 +1,9 @@
 """Base phase interface with cryptographic envelope creation and schema validation."""
 
 import abc
-import os
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any
+
 from ..models import (
     CanonicalEvidence,
     EvidenceEnvelope,
@@ -21,13 +21,19 @@ from ..schema_validator import SchemaValidator
 class BasePhase(abc.ABC):
     """Abstract base class for hardening loop phases."""
 
-    def __init__(self, name: PhaseName, version: str = "0.1.0-beta", method_version: str = "v0.3", schema_version: str = "v0.1-beta"):
+    def __init__(
+        self,
+        name: PhaseName,
+        version: str = "0.1.0-beta",
+        method_version: str = "v0.3",
+        schema_version: str = "v0.1-beta",
+    ):
         self.name = name
         self.version = version
         self.method_version = method_version
         self.schema_version = schema_version
 
-    def compute_input_hash(self, target_path: str, context: Dict[str, Any]) -> str:
+    def compute_input_hash(self, target_path: str, context: dict[str, Any]) -> str:
         target_content_hash = compute_canonical_directory_digest(target_path)
         context_payload = {
             "target_path": target_path,
@@ -37,7 +43,9 @@ class BasePhase(abc.ABC):
         return sha256_dict(context_payload)
 
     @abc.abstractmethod
-    def execute(self, target_path: str, context: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str], VerificationStatus]:
+    def execute(
+        self, target_path: str, context: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str], VerificationStatus]:
         """Executes phase logic.
 
         Returns:
@@ -45,10 +53,10 @@ class BasePhase(abc.ABC):
         """
         pass
 
-    def run(self, target_path: str, context: Dict[str, Any], output_dir: str) -> EvidenceEnvelope:
+    def run(self, target_path: str, context: dict[str, Any], output_dir: str) -> EvidenceEnvelope:
         t0 = time.perf_counter()
         input_hash = self.compute_input_hash(target_path, context)
-        
+
         payload, checks, status = self.execute(target_path, context)
         duration_ms = (time.perf_counter() - t0) * 1000.0
 

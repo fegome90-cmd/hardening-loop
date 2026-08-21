@@ -79,6 +79,7 @@ def validate_payload(data: dict[str, Any], schema_name: str) -> None:
 
 class SchemaValidator:
     """Convenience wrapper for schema validation."""
+
     @staticmethod
     def validate_or_raise(schema_name: str, data: dict[str, Any]) -> None:
         validate_payload(data, schema_name)

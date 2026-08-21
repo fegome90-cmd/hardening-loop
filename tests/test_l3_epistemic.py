@@ -3,7 +3,9 @@
 import json
 import os
 import tempfile
+
 import pytest
+
 from hardening_loop.admission import KnowledgeAdmissionError, KnowledgeAdmissionGate
 from hardening_loop.models import (
     AdmissionStatus,
@@ -41,7 +43,7 @@ def test_canonical_manifest_reproducibility():
         envs_b = manifest_b["envelopes"]
         assert len(envs_a) == len(envs_b) == 5
 
-        for ea, eb in zip(envs_a, envs_b):
+        for ea, eb in zip(envs_a, envs_b, strict=True):
             ca = ea["canonical_evidence"]
             cb = eb["canonical_evidence"]
             assert ca["evidence_id"] == cb["evidence_id"]
@@ -88,7 +90,7 @@ def test_admission_requires_human_reviewer_assertion():
 
 def test_no_canonical_state_without_admission_phase():
     """Epistemic Invariant: WorkUnit cannot reach CANONICAL without transitioning through ADMITTED."""
-    wu = WorkUnit(work_unit_id="wu-epistemic-01", target_path="src/", target_hash="a"*64, state=HardeningState.DRAFT)
-    
+    wu = WorkUnit(work_unit_id="wu-epistemic-01", target_path="src/", target_hash="a" * 64, state=HardeningState.DRAFT)
+
     with pytest.raises(InvalidStateTransitionError):
         StateMachine.transition(wu, HardeningState.CANONICAL)

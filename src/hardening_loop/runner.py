@@ -2,8 +2,8 @@
 
 import json
 import os
-import shutil
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import yaml
 
 from .models import (
@@ -15,7 +15,6 @@ from .models import (
     compute_canonical_directory_digest,
     compute_execution_context_hash,
     sha256_dict,
-    sha256_text,
     utc_now_iso,
 )
 from .phases import (
@@ -26,14 +25,13 @@ from .phases import (
     SimplifyPhase,
     VerifyPhase,
 )
-from .schema_validator import SchemaValidator
 from .states import StateMachine
 
 
 class HardeningRunner:
     """Coordinates execution of the Algorithmic Code Hardening Loop."""
 
-    PHASE_MAP: Dict[PhaseName, BasePhase] = {
+    PHASE_MAP: dict[PhaseName, BasePhase] = {
         PhaseName.QUESTION: QuestionPhase(),
         PhaseName.DELETE: DeletePhase(),
         PhaseName.SIMPLIFY: SimplifyPhase(),
@@ -45,7 +43,7 @@ class HardeningRunner:
         self.target_path = os.path.abspath(target_path)
         self.output_dir = os.path.abspath(output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
-        
+
         target_hash = compute_canonical_directory_digest(self.target_path)
 
         self.work_unit = WorkUnit(
@@ -59,9 +57,9 @@ class HardeningRunner:
                 "execution_context_hash": compute_execution_context_hash(),
             },
         )
-        self.envelopes: List[EvidenceEnvelope] = []
+        self.envelopes: list[EvidenceEnvelope] = []
 
-    def run_phase(self, phase_name: PhaseName, context: Optional[Dict[str, Any]] = None) -> EvidenceEnvelope:
+    def run_phase(self, phase_name: PhaseName, context: dict[str, Any] | None = None) -> EvidenceEnvelope:
         phase = self.PHASE_MAP.get(phase_name)
         if not phase:
             raise ValueError(f"Unknown phase '{phase_name}'")
@@ -81,13 +79,17 @@ class HardeningRunner:
         # Handle state progression
         if phase_name == PhaseName.SIMPLIFY:
             if self.work_unit.state == HardeningState.AUDITING:
-                StateMachine.transition(self.work_unit, HardeningState.PATCH_PROPOSED, reason="Audit and simplification complete")
+                StateMachine.transition(
+                    self.work_unit, HardeningState.PATCH_PROPOSED, reason="Audit and simplification complete"
+                )
         elif phase_name == PhaseName.VERIFY:
             if envelope.status == VerificationStatus.PASS and self.work_unit.state == HardeningState.PATCH_PROPOSED:
                 StateMachine.transition(self.work_unit, HardeningState.VERIFIED, reason="Verification tests passed")
         elif phase_name == PhaseName.CODIFY:
             if self.work_unit.state == HardeningState.VERIFIED:
-                StateMachine.transition(self.work_unit, HardeningState.KNOWLEDGE_CANDIDATE, reason="Knowledge candidates formulated")
+                StateMachine.transition(
+                    self.work_unit, HardeningState.KNOWLEDGE_CANDIDATE, reason="Knowledge candidates formulated"
+                )
 
         return envelope
 
@@ -120,7 +122,7 @@ class HardeningRunner:
             with open(os.path.join(self.output_dir, "admission_record.json"), "w", encoding="utf-8") as f:
                 json.dump(payload.get("admission_record", {}), f, indent=2, sort_keys=True)
 
-    def run_all(self) -> List[EvidenceEnvelope]:
+    def run_all(self) -> list[EvidenceEnvelope]:
         order = [
             PhaseName.QUESTION,
             PhaseName.DELETE,
@@ -142,7 +144,7 @@ class HardeningRunner:
             "runtime_telemetry": {
                 "completed_at": utc_now_iso(),
                 "final_status": "PASS" if all(e.status == VerificationStatus.PASS for e in self.envelopes) else "WARN",
-            }
+            },
         }
         with open(os.path.join(self.output_dir, "evidence_manifest.json"), "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2, sort_keys=True)
