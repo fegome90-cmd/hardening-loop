@@ -36,6 +36,7 @@ dist/
 # Local Agent & Runtime State
 .atl/
 _ctx/
+.mimosa/
 
 # Ephemeral Evidence & Transient Test Dumps
 evidence/self-audit/
