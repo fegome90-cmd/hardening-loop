@@ -33,6 +33,9 @@ hardening-loop telemetry evidence/<run-id>
 
 # Reporte JSON para agentes o dashboards
 hardening-loop telemetry evidence/<run-id> --json
+
+# Exportación idempotente de telemetría a PostHog Cloud
+hardening-loop telemetry evidence/<run-id> --posthog
 ```
 
 **Métricas provistas:**

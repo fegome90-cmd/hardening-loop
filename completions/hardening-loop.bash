@@ -52,7 +52,7 @@ _hardening_loop_completions() {
             fi
             return 0
             ;;
-        inspect|telemetry)
+        inspect)
             case "$prev" in
                 --workspace-root)
                     _filedir -d
@@ -60,6 +60,21 @@ _hardening_loop_completions() {
                     ;;
             esac
             local opts="--workspace-root --json --quiet -q -h --help"
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "$cur") )
+            else
+                _filedir -d
+            fi
+            return 0
+            ;;
+        telemetry)
+            case "$prev" in
+                --workspace-root|--api-key)
+                    _filedir -d
+                    return 0
+                    ;;
+            esac
+            local opts="--workspace-root --posthog --api-key --dry-run --json --quiet -q -h --help"
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "$cur") )
             else

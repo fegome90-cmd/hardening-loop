@@ -86,6 +86,11 @@ def create_parser() -> argparse.ArgumentParser:
     telemetry_parser.add_argument(
         "--workspace-root", default=None, help="Root directory confining authorized file access"
     )
+    telemetry_parser.add_argument("--posthog", action="store_true", help="Export telemetry batch to PostHog Cloud")
+    telemetry_parser.add_argument("--api-key", default=None, help="PostHog API Key / Project Token")
+    telemetry_parser.add_argument(
+        "--dry-run", action="store_true", help="Simulate export without sending network request"
+    )
     telemetry_parser.add_argument("--json", action="store_true", help="Emit telemetry metrics as JSON")
     telemetry_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-essential output")
 
@@ -351,6 +356,26 @@ def handle_telemetry(args: argparse.Namespace) -> int:
     try:
         with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
+
+        if args.posthog:
+            from .posthog_sink import PostHogSinkError, PostHogTelemetrySink
+
+            try:
+                sink = PostHogTelemetrySink(api_key=args.api_key)
+                result = sink.export(manifest, dry_run=args.dry_run)
+                if args.json:
+                    print(json.dumps(result, indent=2, sort_keys=True))
+                elif not args.quiet:
+                    status = result.get("status")
+                    count = result.get("events_count", 0)
+                    if status == "SENT":
+                        print(f"✓ Successfully exported {count} telemetry events to PostHog Cloud.")
+                    elif status == "DRY_RUN":
+                        print(f"[DRY-RUN] Formatted {count} events for PostHog Cloud (no request sent).")
+                return 0
+            except PostHogSinkError as e:
+                print(f"PostHog Export Error: {e}", file=sys.stderr)
+                return 1
 
         telemetry = manifest.get("runtime_telemetry", {})
         if args.json:

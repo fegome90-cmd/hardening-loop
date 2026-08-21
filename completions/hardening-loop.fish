@@ -44,6 +44,9 @@ complete -c hardening-loop -n "__fish_seen_subcommand_from validate" -F
 
 # Subcommand: telemetry
 complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -l workspace-root -r -d "Root directory confining authorized file access"
+complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -l posthog -d "Export telemetry batch to PostHog Cloud"
+complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -l api-key -r -d "PostHog API Key or Project Token"
+complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -l dry-run -d "Simulate export without network requests"
 complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -l json -d "Emit telemetry metrics as JSON"
 complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -s q -l quiet -d "Suppress non-essential output"
 complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -F
