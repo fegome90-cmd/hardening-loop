@@ -1,4 +1,4 @@
-"""Phase 1: QUESTION CONTEXT — Audit explicit vs inferred requirements with exact AST attribution."""
+"""Phase 1: QUESTION REQUIREMENTS — Challenge and classify requirements to eliminate unjustified assumptions."""
 
 import ast
 import os
@@ -10,7 +10,7 @@ from .base import BasePhase
 
 
 class QuestionPhase(BasePhase):
-    """Examines target code and extracts/questions requirements."""
+    """Audits, challenges, and classifies requirements from target source code."""
 
     def __init__(self):
         super().__init__(name=PhaseName.QUESTION)
@@ -18,14 +18,14 @@ class QuestionPhase(BasePhase):
     def _collect_sources(self, target_path: str) -> dict[str, str]:
         sources = {}
         if os.path.isfile(target_path):
-            with open(target_path, encoding="utf-8", errors="ignore") as f:
+            with open(target_path, encoding="utf-8", errors="replace") as f:
                 sources[target_path] = f.read()
         elif os.path.isdir(target_path):
             for root, _, files in os.walk(target_path):
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
-                        with open(full_path, encoding="utf-8", errors="ignore") as f:
+                        with open(full_path, encoding="utf-8", errors="replace") as f:
                             sources[full_path] = f.read()
         return sources
 
@@ -51,12 +51,14 @@ class QuestionPhase(BasePhase):
 
         sources = self._collect_sources(target_path)
         requirements: list[dict[str, Any]] = []
+        total_ast_nodes = 0
         checks.append(f"Parsed {len(sources)} source file(s) for requirements extraction")
 
         for path, code in sources.items():
             fname = os.path.basename(path)
             try:
                 tree = ast.parse(code, filename=path)
+                total_ast_nodes += len(list(ast.walk(tree)))
             except SyntaxError:
                 continue
 
@@ -115,34 +117,44 @@ class QuestionPhase(BasePhase):
                             }
                         )
 
-            # 4. Audit Historical Developer Paths
+            # 4. Challenge Historical / Hardcoded Paths
             for lineno, line in enumerate(code.splitlines(), start=1):
-                matches = re.findall(r'["\'](/(?:Users|home)/[^"\']+)["\']', line)
-                for match in set(matches):
+                match = re.search(r'["\'](/(?:Users|home)/[^"\']+)["\']', line)
+                if match:
                     requirements.append(
                         {
                             "id": f"REQ-HIST-{len(requirements) + 1:03d}",
                             "type": RequirementType.HISTORICAL.value,
-                            "statement": f"Hardcoded developer environment path: {match}",
+                            "statement": f"Hardcoded developer environment path: {match.group(1)}",
                             "source": f"{fname}:{lineno}",
                             "justification_valid": False,
                             "challenge": "Environment paths must be injected via CLI arguments, environment variables, or workspace config.",
                         }
                     )
 
+        # Baseline fallback if no code structures found
+        if not requirements:
+            requirements.append(
+                {
+                    "id": "REQ-INF-001",
+                    "type": RequirementType.INFERRED.value,
+                    "statement": "Target execution must comply with Python runtime standard contracts",
+                    "source": os.path.basename(target_path),
+                    "justification_valid": True,
+                }
+            )
+
+        challenged_count = sum(1 for r in requirements if not r.get("justification_valid", True))
+        checks.append(f"Classified {len(requirements)} requirements ({challenged_count} challenged)")
+
         payload = {
             "target": target_path,
             "total_files_audited": len(sources),
+            "total_ast_nodes_visited": total_ast_nodes,
             "total_requirements_audited": len(requirements),
+            "challenged_assumptions_count": challenged_count,
             "requirements": requirements,
-            "challenged_assumptions_count": sum(
-                [
-                    1
-                    for r in requirements
-                    if not bool(r.get("justification_valid", True)) or "without" in str(r.get("audit_finding", ""))
-                ]
-            ),
         }
-        checks.append(f"Audited {len(requirements)} requirements across {len(sources)} file(s)")
+
         status = VerificationStatus.PASS
         return payload, checks, status

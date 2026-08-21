@@ -569,6 +569,8 @@ class TelemetryCollector:
         total_ast_nodes = max(self.phase_ast_nodes.values()) if self.phase_ast_nodes else 0
 
         throughput_loc_sec = round(total_loc / total_duration_sec, 1) if total_duration_sec > 0 else 0.0
+        peak_memory_mb = get_process_memory_mb()
+        memory_delta_mb = max(0.0, round(peak_memory_mb - self.initial_memory_mb, 2))
 
         return {
             "timestamp": utc_now_iso(),
@@ -577,5 +579,7 @@ class TelemetryCollector:
             "total_loc_analyzed": total_loc,
             "total_ast_nodes_visited": total_ast_nodes,
             "throughput_loc_per_sec": throughput_loc_sec,
-            "peak_memory_mb": get_process_memory_mb(),
+            "initial_memory_mb": self.initial_memory_mb,
+            "peak_memory_mb": peak_memory_mb,
+            "memory_delta_mb": memory_delta_mb,
         }

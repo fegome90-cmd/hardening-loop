@@ -61,7 +61,7 @@
             "type": "object",
             "properties": {
               "path": {
-                "const": "patch.diff"
+                "enum": ["diff.patch", "patch.diff"]
               },
               "type": {
                 "const": "patch"

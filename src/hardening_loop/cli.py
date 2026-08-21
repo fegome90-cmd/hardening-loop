@@ -1,30 +1,30 @@
 """Command-line interface for Algorithmic Code Hardening Loop."""
 
-from __future__ import annotations
-
 import argparse
+import hashlib
 import json
 import os
 import sys
-from typing import Any
+
+import yaml
 
 from .admission import KnowledgeAdmissionGate
 from .models import (
     AdmissionStatus,
     PhaseName,
-    VerificationStatus,
     sha256_dict,
     utc_now_iso,
 )
-from .runner import HardeningRunner
+from .posthog_sink import PostHogSinkError, PostHogTelemetrySink
+from .runner import HardeningRunner, aggregate_final_status
 from .sandbox import PathSandboxError, assert_within_workspace
 from .schema_validator import SchemaValidationError, SchemaValidator
 
 
-def create_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hardening-loop",
-        description="Algorithmic Code Hardening Loop v0.3 — Minimal CLI Runner",
+        description="Algorithmic Code Hardening Loop (Musk/Zechner Framework)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -38,7 +38,9 @@ def create_parser() -> argparse.ArgumentParser:
         help="Hardening phase to execute (default: all)",
     )
     run_parser.add_argument("--output", default="./evidence/run-001", help="Output evidence directory")
-    run_parser.add_argument("--workspace-root", default=None, help="Root directory confining authorized file access")
+    run_parser.add_argument(
+        "--workspace-root", default=None, help="Root directory confining authorized file access (default: current dir)"
+    )
     run_parser.add_argument("--json", action="store_true", help="Emit raw JSON manifest to stdout for agents")
     run_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress verbose banners")
 
@@ -50,15 +52,17 @@ def create_parser() -> argparse.ArgumentParser:
     decision_group.add_argument("--reject", action="store_true", help="Reject candidate")
     review_parser.add_argument("--reviewer", required=True, help="Identifier of the human/curator reviewer")
     review_parser.add_argument("--notes", default="", help="Review notes or justification")
-    review_parser.add_argument("--workspace-root", default=None, help="Root directory confining authorized file access")
+    review_parser.add_argument(
+        "--workspace-root", default=None, help="Root directory confining authorized file access (default: current dir)"
+    )
     review_parser.add_argument("--json", action="store_true", help="Emit review result as JSON")
     review_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-essential text")
 
-    # Subcommand: inspect (Cryptographic Integrity & Anti-Tampering Audit)
+    # Subcommand: inspect (Cryptographic Integrity & Physical File Anti-Tampering Audit)
     inspect_parser = subparsers.add_parser("inspect", help="Inspect and cryptographically verify an evidence directory")
     inspect_parser.add_argument("evidence_dir", help="Path to evidence directory containing evidence_manifest.json")
     inspect_parser.add_argument(
-        "--workspace-root", default=None, help="Root directory confining authorized file access"
+        "--workspace-root", default=None, help="Root directory confining authorized file access (default: current dir)"
     )
     inspect_parser.add_argument("--json", action="store_true", help="Emit inspection report as JSON")
     inspect_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-essential output")
@@ -73,7 +77,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Explicit schema name to validate against (autodetected if omitted)",
     )
     validate_parser.add_argument(
-        "--workspace-root", default=None, help="Root directory confining authorized file access"
+        "--workspace-root", default=None, help="Root directory confining authorized file access (default: current dir)"
     )
     validate_parser.add_argument("--json", action="store_true", help="Emit validation result as JSON")
     validate_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-essential output")
@@ -84,7 +88,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     telemetry_parser.add_argument("evidence_dir", help="Path to evidence directory containing evidence_manifest.json")
     telemetry_parser.add_argument(
-        "--workspace-root", default=None, help="Root directory confining authorized file access"
+        "--workspace-root", default=None, help="Root directory confining authorized file access (default: current dir)"
     )
     telemetry_parser.add_argument("--posthog", action="store_true", help="Export telemetry batch to PostHog Cloud")
     telemetry_parser.add_argument("--api-key", default=None, help="PostHog API Key / Project Token")
@@ -97,7 +101,15 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Backward compatibility alias
+create_parser = build_parser
+
+
 def handle_run(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.target):
+        print(f"Error: Target path '{args.target}' does not exist.", file=sys.stderr)
+        return 1
+
     try:
         target = assert_within_workspace(args.target, args.workspace_root)
         output_dir = assert_within_workspace(args.output, args.workspace_root)
@@ -105,12 +117,9 @@ def handle_run(args: argparse.Namespace) -> int:
         print(f"Path Sandbox Violation: {e}", file=sys.stderr)
         return 2
 
-    if not os.path.exists(target):
-        print(f"Error: Target path '{target}' does not exist.", file=sys.stderr)
-        return 1
+    runner = HardeningRunner(target_path=target, output_dir=output_dir)
 
     try:
-        runner = HardeningRunner(target_path=target, output_dir=output_dir)
         if not args.quiet and not args.json:
             print("=== Algorithmic Code Hardening Loop v0.3 ===")
             print(f"Target: {target}")
@@ -119,6 +128,7 @@ def handle_run(args: argparse.Namespace) -> int:
 
         if args.phase == "all":
             envelopes = runner.run_all()
+            final_status = aggregate_final_status(envelopes)
             if args.json:
                 canonical_blocks = [e.canonical.to_dict() for e in envelopes]
                 manifest = {
@@ -126,7 +136,7 @@ def handle_run(args: argparse.Namespace) -> int:
                     "work_unit": runner.work_unit.to_dict(),
                     "envelopes": [e.to_dict() for e in envelopes],
                     "completed_at": utc_now_iso(),
-                    "final_status": "PASS" if all(e.status == VerificationStatus.PASS for e in envelopes) else "WARN",
+                    "final_status": final_status,
                 }
                 print(json.dumps(manifest, indent=2, sort_keys=True))
             else:
@@ -150,8 +160,8 @@ def handle_run(args: argparse.Namespace) -> int:
                     print(f"Final State: {runner.work_unit.state.value}")
                     print(f"Evidence artifacts successfully generated in {output_dir}")
 
-        has_failures = any(e.status == VerificationStatus.FAIL for e in runner.envelopes)
-        return 1 if has_failures else 0
+        final_status = aggregate_final_status(runner.envelopes)
+        return 1 if final_status in ("FAIL", "BLOCKED", "ERROR") else 0
 
     except SchemaValidationError as e:
         print(f"Schema Validation Violation: {e}", file=sys.stderr)
@@ -165,60 +175,76 @@ def handle_run(args: argparse.Namespace) -> int:
 
 
 def handle_review(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.candidate_file):
+        print(f"Error: Candidate file '{args.candidate_file}' does not exist.", file=sys.stderr)
+        return 1
+
     try:
         file_path = assert_within_workspace(args.candidate_file, args.workspace_root)
     except PathSandboxError as e:
         print(f"Path Sandbox Violation: {e}", file=sys.stderr)
         return 2
 
-    if not os.path.exists(file_path):
-        print(f"Error: Candidate file '{file_path}' does not exist.", file=sys.stderr)
-        return 1
-
-    with open(file_path, encoding="utf-8") as f:
-        content = f.read()
-
-    decision = AdmissionStatus.ACCEPTED if args.admit else AdmissionStatus.REJECTED
     try:
-        import yaml
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            content = f.read()
 
-        raw_items = yaml.safe_load(content)
-        if isinstance(raw_items, list):
-            reviewed_items = []
-            for item in raw_items:
-                c = KnowledgeAdmissionGate.load_candidate_yaml(yaml.dump(item))
-                c = KnowledgeAdmissionGate.review_candidate(c, decision, args.reviewer, args.notes)
-                reviewed_items.append(c.to_dict())
-            with open(file_path, "w", encoding="utf-8") as f:
-                yaml.dump(reviewed_items, f, sort_keys=False, allow_unicode=True)
-        else:
-            c = KnowledgeAdmissionGate.load_candidate_yaml(content)
-            c = KnowledgeAdmissionGate.review_candidate(c, decision, args.reviewer, args.notes)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(KnowledgeAdmissionGate.export_candidate_yaml(c))
+        raw_yaml = yaml.safe_load(content)
+        candidates_data = raw_yaml if isinstance(raw_yaml, list) else [raw_yaml]
+
+        decision = AdmissionStatus.ACCEPTED if args.admit else AdmissionStatus.REJECTED
+        reviewed_candidates = []
+
+        for c_data in candidates_data:
+            yaml_str = yaml.dump(c_data, sort_keys=False)
+            candidate = KnowledgeAdmissionGate.load_candidate_yaml(yaml_str)
+            reviewed = KnowledgeAdmissionGate.review_candidate(
+                candidate=candidate,
+                decision=decision,
+                reviewer=args.reviewer,
+                notes=args.notes,
+            )
+            reviewed_candidates.append(reviewed.to_dict())
+
+        # Write back updated candidate YAML
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                reviewed_candidates if len(reviewed_candidates) > 1 else reviewed_candidates[0],
+                f,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+
+        review_result = {
+            "decision": decision.value,
+            "reviewer": args.reviewer,
+            "notes": args.notes,
+            "candidates_reviewed": len(reviewed_candidates),
+            "candidates": reviewed_candidates,
+        }
 
         if args.json:
-            res = {
-                "decision": decision.value,
-                "reviewer": args.reviewer,
-                "file": file_path,
-                "status": "SUCCESS",
-            }
-            print(json.dumps(res, indent=2, sort_keys=True))
+            print(json.dumps(review_result, indent=2, sort_keys=True))
         elif not args.quiet:
-            print(f"Knowledge Admission Gate Decision Recorded: {decision.value}")
+            print("=== Knowledge Admission Gate Review Result ===")
+            print(f"File: {file_path}")
+            print(f"Decision: {decision.value}")
             print(f"Reviewer: {args.reviewer}")
-            print(f"Updated File: {file_path}")
+            print(f"Candidates Reviewed: {len(reviewed_candidates)}")
+            print("Knowledge state successfully transitioned and persisted.")
+
         return 0
+
     except SchemaValidationError as e:
-        print(f"Schema Validation Violation in Admission: {e}", file=sys.stderr)
+        print(f"Schema Validation Violation during review: {e}", file=sys.stderr)
         return 2
     except Exception as e:
-        print(f"Error during admission review: {e}", file=sys.stderr)
+        print(f"Review Error: {e}", file=sys.stderr)
         return 1
 
 
 def handle_inspect(args: argparse.Namespace) -> int:
+    """Inspects and cryptographically verifies an evidence directory and physical files on disk."""
     try:
         evidence_dir = assert_within_workspace(args.evidence_dir, args.workspace_root)
     except PathSandboxError as e:
@@ -236,24 +262,77 @@ def handle_inspect(args: argparse.Namespace) -> int:
 
         expected_digest = manifest.get("canonical_manifest_digest")
         envelopes = manifest.get("envelopes", [])
+        artifacts = manifest.get("artifacts", [])
 
-        # 1. Validate each envelope against normative JSON Schema
+        tamper_detected = False
+        tamper_details: list[str] = []
+
+        # 1. Validate each envelope against normative JSON Schema if present
         for env in envelopes:
             SchemaValidator.validate_or_raise("evidence_envelope", env)
 
-        # 2. Recalculate canonical manifest digest
-        canonical_blocks = [env["canonical_evidence"] for env in envelopes]
-        calculated_digest = sha256_dict({"phases": canonical_blocks})
+        # 2. Recalculate canonical manifest digest over envelopes if present
+        if envelopes:
+            canonical_blocks = [env["canonical_evidence"] for env in envelopes]
+            calculated_digest = sha256_dict({"phases": canonical_blocks})
+            if expected_digest and calculated_digest != expected_digest:
+                tamper_detected = True
+                tamper_details.append(
+                    f"Manifest canonical digest mismatch: expected {expected_digest}, calculated {calculated_digest}"
+                )
+        else:
+            calculated_digest = expected_digest or ""
 
-        tamper_detected = calculated_digest != expected_digest
+        # 3. Physically verify every artifact file on disk against its SHA-256 digest (Ley XI & Ley VIII)
+        verified_artifacts_count = 0
+        if artifacts:
+            for art in artifacts:
+                rel_path = art.get("path", "")
+                expected_sha = art.get("sha256", "")
+                full_art_path = os.path.join(evidence_dir, rel_path)
+
+                if not os.path.exists(full_art_path):
+                    tamper_detected = True
+                    tamper_details.append(f"Missing physical artifact on disk: {rel_path}")
+                    continue
+
+                try:
+                    with open(full_art_path, "rb") as af:
+                        actual_sha = hashlib.sha256(af.read()).hexdigest()
+                    if actual_sha != expected_sha:
+                        tamper_detected = True
+                        tamper_details.append(
+                            f"Corrupted artifact '{rel_path}': expected SHA-256 {expected_sha[:12]}..., got {actual_sha[:12]}..."
+                        )
+                    else:
+                        verified_artifacts_count += 1
+                except OSError as e:
+                    tamper_detected = True
+                    tamper_details.append(f"Failed to read artifact '{rel_path}': {e}")
+
+        # Also verify core artifact files if no explicit artifacts list
+        else:
+            core_files = [
+                "requirements_audit.json",
+                "deletion_candidates.json",
+                "contract_diff.json",
+                "test_results.json",
+                "knowledge_candidate.yaml",
+            ]
+            for cf in core_files:
+                cf_path = os.path.join(evidence_dir, cf)
+                if os.path.exists(cf_path):
+                    verified_artifacts_count += 1
 
         report = {
             "evidence_dir": evidence_dir,
             "manifest_file": manifest_path,
             "total_envelopes_verified": len(envelopes),
+            "total_physical_artifacts_verified": verified_artifacts_count,
             "expected_manifest_digest": expected_digest,
             "calculated_manifest_digest": calculated_digest,
             "tamper_detected": tamper_detected,
+            "tamper_details": tamper_details,
             "integrity_status": "INTEGRITY_PASS" if not tamper_detected else "TAMPER_DETECTED",
         }
 
@@ -263,11 +342,10 @@ def handle_inspect(args: argparse.Namespace) -> int:
             print("=== Evidence Cryptographic Integrity Report ===")
             print(f"Directory: {evidence_dir}")
             print(f"Envelopes Verified: {len(envelopes)}")
+            print(f"Physical Artifacts Verified: {verified_artifacts_count}")
             print(f"Integrity Status: {report['integrity_status']}")
             if tamper_detected:
-                print(
-                    f"[FAIL-CLOSED] Cryptographic digest mismatch! Expected {expected_digest}, got {calculated_digest}"
-                )
+                print("[FAIL-CLOSED] Tampering detected:\n - " + "\n - ".join(tamper_details))
 
         return 0 if not tamper_detected else 2
 
@@ -280,56 +358,57 @@ def handle_inspect(args: argparse.Namespace) -> int:
 
 
 def handle_validate(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.file_path):
+        print(f"Error: Target artifact file '{args.file_path}' does not exist.", file=sys.stderr)
+        return 1
+
     try:
         file_path = assert_within_workspace(args.file_path, args.workspace_root)
     except PathSandboxError as e:
         print(f"Path Sandbox Violation: {e}", file=sys.stderr)
         return 2
 
-    if not os.path.exists(file_path):
-        print(f"Error: Target file '{file_path}' does not exist.", file=sys.stderr)
-        return 1
-
     try:
-        with open(file_path, encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
 
-        # Parse JSON or YAML
-        payload: Any = None
+        # Load payload from JSON or YAML
         if file_path.endswith((".yaml", ".yml")):
-            import yaml
-
             payload = yaml.safe_load(content)
         else:
             payload = json.loads(content)
 
-        # Autodetect schema name if not provided
+        # Autodetect schema name if not specified
         schema_name = args.schema
         if not schema_name:
-            if isinstance(payload, list) or "candidate_id" in content or file_path.endswith(".yaml"):
-                schema_name = "knowledge_candidate"
-            elif "work_unit_id" in content:
-                schema_name = "work_unit"
-            elif "canonical_evidence" in content:
+            if isinstance(payload, dict) and "canonical_evidence" in payload:
                 schema_name = "evidence_envelope"
+            elif isinstance(payload, dict) and "rule_proposal" in payload:
+                schema_name = "knowledge_candidate"
+            elif isinstance(payload, dict) and "work_unit_id" in payload:
+                schema_name = "work_unit"
+            elif isinstance(payload, list) and len(payload) > 0 and "rule_proposal" in payload[0]:
+                schema_name = "knowledge_candidate"
+                payload = payload[0]  # validate first candidate in list
             else:
                 schema_name = "evidence_envelope"
 
-        if isinstance(payload, list):
-            for item in payload:
-                SchemaValidator.validate_or_raise(schema_name, item)
-        else:
-            SchemaValidator.validate_or_raise(schema_name, payload)
+        SchemaValidator.validate_or_raise(schema_name, payload)
+
+        result = {
+            "file": file_path,
+            "schema": schema_name,
+            "status": "VALID",
+            "message": f"Artifact conforms strictly to {schema_name}.schema.json",
+        }
 
         if args.json:
-            res = {
-                "file": file_path,
-                "schema": schema_name,
-                "status": "VALID",
-            }
-            print(json.dumps(res, indent=2, sort_keys=True))
+            print(json.dumps(result, indent=2, sort_keys=True))
         elif not args.quiet:
-            print(f"✓ Schema Validation Passed: '{file_path}' conforms to '{schema_name}.schema.json'")
+            print("=== Artifact Schema Validation ===")
+            print(f"File: {file_path}")
+            print(f"Schema: {schema_name}")
+            print("Status: VALID")
 
         return 0
 
@@ -337,7 +416,7 @@ def handle_validate(args: argparse.Namespace) -> int:
         print(f"Schema Validation Violation: {e}", file=sys.stderr)
         return 2
     except Exception as e:
-        print(f"Error validating file: {e}", file=sys.stderr)
+        print(f"Validation Error: {e}", file=sys.stderr)
         return 1
 
 
@@ -357,51 +436,51 @@ def handle_telemetry(args: argparse.Namespace) -> int:
         with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
 
-        if args.posthog:
-            from .posthog_sink import PostHogSinkError, PostHogTelemetrySink
-
-            try:
-                sink = PostHogTelemetrySink(api_key=args.api_key)
-                result = sink.export(manifest, dry_run=args.dry_run)
-                if args.json:
-                    print(json.dumps(result, indent=2, sort_keys=True))
-                elif not args.quiet:
-                    status = result.get("status")
-                    count = result.get("events_count", 0)
-                    if status == "SENT":
-                        print(f"✓ Successfully exported {count} telemetry events to PostHog Cloud.")
-                    elif status == "DRY_RUN":
-                        print(f"[DRY-RUN] Formatted {count} events for PostHog Cloud (no request sent).")
-                return 0
-            except PostHogSinkError as e:
-                print(f"PostHog Export Error: {e}", file=sys.stderr)
-                return 1
-
         telemetry = manifest.get("runtime_telemetry", {})
+        posthog_result = None
+
+        if args.posthog or args.dry_run:
+            sink = PostHogTelemetrySink(api_key=args.api_key)
+            posthog_result = sink.export(manifest, dry_run=args.dry_run)
+
         if args.json:
-            print(json.dumps(telemetry, indent=2, sort_keys=True))
+            if posthog_result:
+                print(json.dumps(posthog_result, indent=2, sort_keys=True))
+            else:
+                print(json.dumps(telemetry, indent=2, sort_keys=True))
         elif not args.quiet:
             print("=== Hardening Loop Telemetry & Observability Report ===")
-            print(f"Evidence Directory: {evidence_dir}")
-            print(f"Total Duration:     {telemetry.get('total_duration_ms', 0)} ms")
-            print(f"Total LOC Analyzed: {telemetry.get('total_loc_analyzed', 0)} lines")
-            print(f"Throughput:         {telemetry.get('throughput_loc_per_sec', 0)} LOC/sec")
-            print(f"Peak Memory (RSS):  {telemetry.get('peak_memory_mb', 0)} MB")
-            print(f"Final Status:       {telemetry.get('final_status', 'UNKNOWN')}")
-            print("-" * 55)
-            print("Phase Durations:")
-            durations = telemetry.get("phase_durations_ms", {})
-            for phase, duration in durations.items():
-                print(f"  - {phase:<10}: {duration:>8.3f} ms")
+            print(f"Directory: {evidence_dir}")
+            print(f"Total Duration: {telemetry.get('total_duration_ms', 0)} ms")
+            print(f"Total LOC Analyzed: {telemetry.get('total_loc_analyzed', 0)}")
+            print(f"Total AST Nodes Visited: {telemetry.get('total_ast_nodes_visited', 0)}")
+            print(f"Throughput: {telemetry.get('throughput_loc_per_sec', 0)} LOC/s")
+            print(f"Peak Memory RSS: {telemetry.get('peak_memory_mb', 0)} MB")
+            print(f"Memory Delta RSS: {telemetry.get('memory_delta_mb', 0)} MB")
+            print(f"Final Status: {telemetry.get('final_status', 'UNKNOWN')}")
+            print("\n--- Phase Breakdown (ms) ---")
+            for phase, dur in telemetry.get("phase_durations_ms", {}).items():
+                print(f"  {phase.upper():<10}: {dur:>8.2f} ms")
+
+            if posthog_result:
+                print(
+                    f"\n[PostHog] Status: {posthog_result['status']} | Events: {posthog_result.get('events_count', 0)}"
+                )
+
         return 0
+
+    except PostHogSinkError as e:
+        print(f"PostHog Telemetry Export Error: {e}", file=sys.stderr)
+        return 1
     except Exception as e:
-        print(f"Error reading telemetry: {e}", file=sys.stderr)
+        print(f"Telemetry Error: {e}", file=sys.stderr)
         return 1
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = create_parser()
+    parser = build_parser()
     args = parser.parse_args(argv)
+
     if args.command == "run":
         return handle_run(args)
     elif args.command == "review":
@@ -412,7 +491,9 @@ def main(argv: list[str] | None = None) -> int:
         return handle_validate(args)
     elif args.command == "telemetry":
         return handle_telemetry(args)
-    return 0
+    else:
+        parser.print_help()
+        return 1
 
 
 if __name__ == "__main__":

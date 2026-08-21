@@ -1,20 +1,21 @@
-# Algorithmic Code Hardening Loop — Especificación Operacional v0.1-beta
+# Algorithmic Code Hardening Loop — Especificación Operacional v0.3
 
 ## 1. Fundamentos y Filosofía
 
-El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinista para código generado por modelos de lenguaje (LLM), basado en los principios de ingeniería de Zechner y el algoritmo de 5 pasos de Musk:
+El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinista para código generado por modelos de lenguaje (LLM) y sistemas agénticos, basado en los principios de ingeniería de Zechner y el algoritmo de 5 pasos de Musk:
 
 > "El agente permanece simple.  
 > El entorno acumula aprendizaje.  
 > La evidencia decide qué conocimiento sobrevive."
 
-### Principios Inquebrantables
-1. **Anti-Slop / Anti-Ferrari**: No crear agentes secundarios, MCPs, ni abstracciones antes de validar la necesidad con evidencia y tests.
-2. **Determinismo de la Capa Canónica (Canonical Evidence Determinism)**: Ninguna afirmación es válida sin un `EvidenceEnvelope` inmutable estructurado en dos bloques aislados:
+### Invariantes Constitucionales (AGENTS.md)
+1. **Anti-Slop / Anti-Ferrari (Ley III):** Arquitectura minimalista sin dependencias pesadas ni capas de abstracción innecesarias.
+2. **Determinismo de la Capa Canónica (Leyes IX y XI):** Ninguna afirmación es válida sin un `EvidenceEnvelope` inmutable estructurado en dos bloques aislados:
    - `canonical_evidence`: Identidad determinista libre de reloj (`evidence_id`, `input_hash`, `output_hash`, `method_version`, `schema_version`, `execution_context_hash`, `artifact_payload`).
    - `runtime_receipt`: Telemetría no determinista de observabilidad (`producer`, `timestamp`, `duration_ms`, `checks`, `status`).
-3. **Knowledge Admission Gate (Aserción de Revisor Humano)**: Las observaciones de un LLM o runner jamás se publican automáticamente como conocimiento canónico o reglas ejecutables. Requieren pasar por la aduana de revisión con una **Aserción de Revisor Humano Declarada** explícita (`RULE-GATE-001`).
-4. **Separación de Autoridad vs Evidencia**: El hecho de que un sistema complete sus verificaciones automatizadas declara el estado `READY_FOR_PR_REVIEW`, pero **la promoción a conocimiento CANONICAL requiere siempre revisión externa explícita**.
+3. **Principio Fail-Closed (Ley VIII):** Ante cualquier fallo de seguridad, violación de esquema, hash discrepante o excepción no recuperable, el sistema aborta de inmediato (`fail-closed`).
+4. **Knowledge Admission Gate (Leyes VIII y XII):** Prohibición terminante de auto-admisión o promoción automática a estado canónico. Toda regla exige revisión humana explícita (`RULE-GATE-001`).
+5. **Aislamiento y Sandboxing de Workspace (Ley VIII):** Toda operación de lectura/escritura está confinada estrictamente a los límites del workspace (`workspace_root`), fallando cerrado ante intentos de escape o path traversal.
 
 ---
 
@@ -35,66 +36,111 @@ El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinist
 
 ### Contratos de Entrada/Salida por Fase
 
-| Fase | Entrada | Salida Obligatoria | Criterio de Verificación |
+| Fase | Entrada | Salida Obligatoria | Criterio de Verificación & Enforcement |
 | :--- | :--- | :--- | :--- |
-| **`question`** | Código objetivo, especificaciones | `requirements_audit.json` | Clasificación de requerimientos en `explicit`, `inferred`, `historical`, `security_constraint`. |
-| **`delete`** | Audit de requerimientos, código | `deletion_candidates.json`, `diff.patch`, `rollback_ref` | Detección de código muerto, wrappers superfluos, bypasses y acoplamientos rígidos. |
-| **`simplify`** | Código tras eliminación, diffs | `contract_diff.json` | Preservación estricta de interfaces públicas externas y firmas de tipos. |
-| **`verify`** | Target / patch | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Medición del ciclo TDD (`< 100ms`), cobertura funcional e invariantes ontológicos. |
-| **`codify`** | Hallazgos verificados y evidencias | `knowledge_candidate.yaml`, `admission_record.json` | Extracción de reglas candidatas vinculadas a `evidence_id` y firma de aduana. |
+| **`question`** | Código objetivo, especificaciones | `requirements_audit.json` | Clasificación de requerimientos en `explicit`, `inferred`, `historical`, `security_constraint`. Atribución AST exacta `archivo:línea (scope)`. |
+| **`delete`** | Audit de requerimientos, código | `deletion_candidates.json`, `diff.patch`, `rollback_ref` | Detección y poda de invocaciones `os.system`, `subprocess shell=True`, `eval`/`exec` y paths absolutos hardcodeados. |
+| **`simplify`** | Código tras eliminación, diffs | `contract_diff.json` | Inferencia y preservación de tipos de retorno (`infer_return_type`) e interfaces públicas. |
+| **`verify`** | Target / patch aplicado | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Verificación AST estática target-centric. Falla cerrado (`FAIL`) ante errores de sintaxis o vulnerabilidades `CRITICAL`/`HIGH`. |
+| **`codify`** | Hallazgos verificados y evidencias | `knowledge_candidate.yaml`, `admission_record.json` | Extracción dinámica de reglas candidatas estructuradas en estado `PENDING_REVIEW` listas para la Aduana. |
 
 ---
 
-## 3. Modelo de Estados
+## 3. Arquitectura del CLI y Subcomandos
+
+El framework provee una interfaz CLI unificada:
+
+```bash
+# 1. Ejecución del ciclo de endurecimiento
+hardening-loop run --target <path> --phase all --output evidence/run-001 [--json] [-q]
+
+# 2. Revisión y decisión en la Aduana (Knowledge Admission Gate)
+hardening-loop review <candidate.yaml> --admit|--reject --reviewer <id> [--notes <txt>]
+
+# 3. Inspección criptográfica e integridad de archivos físicos
+hardening-loop inspect <evidence_dir> [--workspace-root <dir>] [--json]
+
+# 4. Validación estricta de esquemas JSON / YAML
+hardening-loop validate <artifact_file> [--schema <name>]
+
+# 5. Telemetría de rendimiento y exportación a PostHog
+hardening-loop telemetry <evidence_dir> [--posthog] [--api-key <key>] [--dry-run] [--json]
+```
+
+---
+
+## 4. Manifiesto Unificado v0.2 y Structured WAL (`telemetry.jsonl`)
+
+El runner genera un manifiesto criptográficamente verificable `evidence_manifest.json` respaldado por un log append-only WAL (`telemetry.jsonl`):
+
+```json
+{
+  "schema_version": "hardening-loop.manifest.v0.2",
+  "run_id": "hl_324c01071106",
+  "trace_id": "tr_324c010711060000",
+  "created_at": "2026-08-21T20:00:00+00:00",
+  "git_sha": "c4cfbdf...",
+  "dirty_worktree": false,
+  "final_status": "PASS",
+  "artifacts": [
+    { "path": "requirements_audit.json", "type": "evidence", "sha256": "..." },
+    { "path": "deletion_candidates.json", "type": "evidence", "sha256": "..." },
+    { "path": "diff.patch", "type": "patch", "sha256": "..." },
+    { "path": "test_results.json", "type": "evidence", "sha256": "..." },
+    { "path": "telemetry.jsonl", "type": "telemetry", "sha256": "..." }
+  ],
+  "integrity": {
+    "hash_algorithm": "sha256",
+    "manifest_hash": "...",
+    "artifact_count": 8,
+    "integrity_status": "PASS"
+  },
+  "canonical_manifest_digest": "...",
+  "work_unit": { ... },
+  "envelopes": [ ... ],
+  "runtime_telemetry": {
+    "total_duration_ms": 42.5,
+    "total_loc_analyzed": 119,
+    "total_ast_nodes_visited": 350,
+    "throughput_loc_per_sec": 2800.0,
+    "initial_memory_mb": 18.2,
+    "peak_memory_mb": 19.4,
+    "memory_delta_mb": 1.2,
+    "final_status": "PASS"
+  }
+}
+```
+
+---
+
+## 5. Modelo de Estados y Transiciones
 
 ```text
 [DRAFT] 
    │ (Inicio de auditoría / Canonical Directory Digest)
    ▼
 [AUDITING] 
-   │ (Propuesta de parches/simplificaciones)
+   │ (Ejecución de fases question, delete, simplify)
    ▼
 [PATCH_PROPOSED] 
-   │ (Suite de tests estratificada en 3 capas)
+   │ (Suite de verificación y checks de seguridad AST en VerifyPhase)
    ▼
 [VERIFIED] 
-   │ (Generación de Knowledge Candidate con ID hexadecimal determinista)
+   │ (Generación de KnowledgeCandidate en CodifyPhase)
    ▼
-[KNOWLEDGE_CANDIDATE]
+[KNOWLEDGE_CANDIDATE] (Estado: PENDING_REVIEW)
    │
    ├──────► [REJECTED / OBSOLETE] (Rechazado en Aduana)
    │
-   ▼ (Aserción de Revisor Humano en Knowledge Admission Gate - RULE-GATE-001)
+   ▼ (Aserción de Revisor Humano en Knowledge Admission Gate)
 [ADMITTED]
-   │ (Formalización en reglas ejecutables / linter / test fixture)
+   │ (Formalización en test determinista / linter / fixture en CI)
    ▼
 [READY_FOR_PR_REVIEW]
    │ (Revisión Externa y Merge Mainline)
    ▼
 [CANONICAL]
-   │ (Superado por nuevo aprendizaje validado)
+   │ (Superado por nuevo aprendizaje empírico)
    ▼
 [DEPRECATED]
 ```
-
----
-
-## 4. Matriz de Cobertura de Invariantes (Ontological Invariants)
-
-A diferencia de la cobertura de líneas de código (89%), la validez del sistema se mide por su matriz de invariantes:
-
-| Capa Ontológica | Invariante Verificado | Mecanismo de Enforcement | Estado |
-| :--- | :--- | :--- | :---: |
-| **Layer 1: Implementation** | Parsing AST determinista, digest de directorios y CLI parsing. | `tests/test_l1_implementation.py` | `PASS` |
-| **Layer 2: Contracts** | Autómata de estados acíclico y validación JSON Schema fail-closed. | `tests/test_l2_contracts.py` + `Draft7Validator` | `PASS` |
-| **Layer 3: Epistemic** | `canonical_manifest_digest` bit-for-bit match entre ejecuciones independientes. | `tests/test_l3_epistemic.py` | `PASS` |
-| **Layer 3: Epistemic** | Prohibición de evidencia sin `execution_context_hash` (Git SHA + Lockfile). | `tests/test_l3_epistemic.py` | `PASS` |
-| **Layer 3: Epistemic** | Prohibición de `ADMITTED` sin `reviewer.strip() != ""` (Aserción Humana). | `tests/test_l3_epistemic.py` | `PASS` |
-| **Layer 3: Epistemic** | Prohibición de salto de `DRAFT` a `CANONICAL` sin pasar por Aduana. | `tests/test_l3_epistemic.py` | `PASS` |
-
----
-
-## 5. Reglas Normativas Admitidas en el Repositorio
-
-* **`RULE-EVIDENCE-001` (SCHEMA_GUARD):** Todo sobre de evidencia debe desacoplar el bloque determinista `canonical_evidence` de la telemetría `runtime_receipt` e incluir `execution_context_hash` (Git commit SHA + Lockfile digest).
-* **`RULE-GATE-001` (CONTRACT_VALIDATOR):** La función de revisión de la Aduana exige obligatoriamente una aserción de revisor humano declarada no vacía (`reviewer.strip()`).

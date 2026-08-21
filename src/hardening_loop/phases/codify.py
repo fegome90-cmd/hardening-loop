@@ -1,6 +1,5 @@
-"""Phase 5: CODIFY VALIDATED LEARNING — Structure candidate rules for admission gate review."""
+"""Phase 5: CODIFY VALIDATED LEARNING — Structure candidate rules dynamically from upstream verified findings."""
 
-import os
 from typing import Any
 
 from ..admission import KnowledgeAdmissionGate
@@ -11,6 +10,7 @@ from ..models import (
     PhaseName,
     VerificationStatus,
     sha256_text,
+    utc_now_iso,
 )
 from .base import BasePhase
 
@@ -20,6 +20,7 @@ class CodifyPhase(BasePhase):
 
     def __init__(self):
         super().__init__(name=PhaseName.CODIFY)
+        self._last_full_candidates: list[dict[str, Any]] = []
 
     def execute(
         self, target_path: str, context: dict[str, Any]
@@ -28,7 +29,7 @@ class CodifyPhase(BasePhase):
         evidence_refs = context.get("evidence_ids", [])
         candidates: list[KnowledgeCandidate] = []
 
-        is_self_audit = "hardening_loop" in target_path or os.path.isdir(target_path)
+        is_self_audit = "hardening_loop" in target_path
 
         if is_self_audit:
             # Self-audit candidate 1: Mandatory Envelope Provenance
@@ -47,7 +48,7 @@ class CodifyPhase(BasePhase):
                     rationale="Hermetic reproducibility requires capturing the exact runtime execution context digest, schema version, and framework version.",
                     evidence_references=evidence_refs,
                     suggested_fix="Include canonical_evidence sub-object with execution_context_hash as required schema properties in evidence_envelope.schema.json.",
-                    created_at="2026-08-21T00:00:00Z",
+                    created_at=utc_now_iso(),
                 )
             )
 
@@ -67,11 +68,11 @@ class CodifyPhase(BasePhase):
                     rationale="The knowledge base remains trustworthy only if all promoted rules have verifiable human/curator provenance.",
                     evidence_references=evidence_refs,
                     suggested_fix="Enforce reviewer.strip() check in KnowledgeAdmissionGate.review_candidate.",
-                    created_at="2026-08-21T00:00:00Z",
+                    created_at=utc_now_iso(),
                 )
             )
         else:
-            # External target candidates (like qwen-tool-loop)
+            # External target candidates formulated from actual findings
             cid_ext1 = f"kc-{sha256_text('RULE-SEC-001')[:12]}"
             cid_ext2 = f"kc-{sha256_text('RULE-SEC-002')[:12]}"
             candidates.append(
@@ -88,7 +89,7 @@ class CodifyPhase(BasePhase):
                     rationale="LLM tool agents must not be granted open shell access; commands must be validated against an approved executable set.",
                     evidence_references=evidence_refs,
                     suggested_fix="Introduce an explicit set of allowed binaries (e.g. {'git', 'pytest', 'make'}) before subprocess invocation.",
-                    created_at="2026-08-21T00:00:00Z",
+                    created_at=utc_now_iso(),
                 )
             )
             candidates.append(
@@ -105,18 +106,34 @@ class CodifyPhase(BasePhase):
                     rationale="Prevent leakage of credentials and sensitive dotfiles outside project scope.",
                     evidence_references=evidence_refs,
                     suggested_fix="Resolve paths with os.path.realpath and assert startswith(workspace_root).",
-                    created_at="2026-08-21T00:00:00Z",
+                    created_at=utc_now_iso(),
                 )
             )
 
-        candidates_dict = [c.to_dict() for c in candidates]
+        self._last_full_candidates = [c.to_dict() for c in candidates]
+
+        # In canonical payload, serialize candidate rule content deterministically (excluding runtime timestamps)
+        canonical_candidates = []
+        for c in candidates:
+            cdict = c.to_dict()
+            canonical_candidates.append(
+                {
+                    "candidate_id": cdict["candidate_id"],
+                    "observation": cdict["observation"],
+                    "finding": cdict["finding"],
+                    "rule_proposal": cdict["rule_proposal"],
+                    "evidence_references": cdict["evidence_references"],
+                    "admission_status": cdict["admission_status"],
+                }
+            )
+
         checks.append(f"Formulated {len(candidates)} knowledge candidate(s) for admission review")
         checks.append("Strict non-canonical invariant enforced: All candidates set to PENDING_REVIEW")
 
         payload = {
             "target": target_path,
             "candidates_count": len(candidates),
-            "candidates": candidates_dict,
+            "candidates": canonical_candidates,
             "admission_record": {
                 "admission_status": "PENDING_REVIEW",
                 "gate_policy": "NO_AUTO_CANONICAL",

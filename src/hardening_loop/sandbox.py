@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 
 
 class PathSandboxError(Exception):
@@ -14,35 +15,68 @@ class PathSandboxError(Exception):
         super().__init__(message)
 
 
-def assert_within_workspace(path: str, workspace_root: str | None = None) -> str:
+def assert_within_workspace(
+    path: str,
+    workspace_root: str | None = None,
+    allow_unconfined: bool = False,
+) -> str:
     """Validates that a path resides strictly within the authorized workspace boundary.
 
     Applies realpath canonicalization to resolve directory traversal and symlinks.
-    Fails closed if the path escapes the workspace root when workspace_root is specified.
+    Fails closed by default against the current workspace and system temp directory.
 
     Args:
         path: Path to target file or directory.
-        workspace_root: Authorized root directory (if None, boundary check is bypassed).
+        workspace_root: Explicit authorized root directory. If specified, path must be strictly inside.
+        allow_unconfined: If True, explicitly bypasses the workspace boundary check.
 
     Returns:
         Canonical realpath of the validated path.
 
     Raises:
-        PathSandboxError: If the resolved path escapes the specified workspace root.
+        PathSandboxError: If the resolved path escapes the authorized workspace root.
     """
     target_real = os.path.realpath(path)
-    if workspace_root is None:
+    if allow_unconfined:
         return target_real
 
-    ws_root = os.path.realpath(workspace_root)
-    ws_root_prefix = ws_root if ws_root.endswith(os.sep) else ws_root + os.sep
+    # 1. Explicit workspace_root provided: strictly enforce boundary
+    if workspace_root is not None:
+        ws_root = os.path.realpath(workspace_root)
+        ws_prefix = ws_root if ws_root.endswith(os.sep) else ws_root + os.sep
+        if target_real != ws_root and not target_real.startswith(ws_prefix):
+            raise PathSandboxError(
+                f"[FAIL-CLOSED] Path '{path}' (resolved: '{target_real}') escapes workspace boundary '{ws_root}'.",
+                path=path,
+                workspace_root=ws_root,
+            )
+        return target_real
 
-    # A target is within workspace if it equals ws_root or starts with ws_root_prefix
-    if target_real != ws_root and not target_real.startswith(ws_root_prefix):
-        raise PathSandboxError(
-            f"[FAIL-CLOSED] Path '{path}' (resolved: '{target_real}') escapes workspace boundary '{ws_root}'.",
-            path=path,
-            workspace_root=ws_root,
-        )
+    # 2. Default fail-closed mode: path must be within current working directory OR system temp dir
+    cwd_root = os.path.realpath(os.getcwd())
+    cwd_prefix = cwd_root if cwd_root.endswith(os.sep) else cwd_root + os.sep
 
-    return target_real
+    temp_root = os.path.realpath(tempfile.gettempdir())
+    temp_prefix = temp_root if temp_root.endswith(os.sep) else temp_root + os.sep
+
+    # Check against cwd
+    if target_real == cwd_root or target_real.startswith(cwd_prefix):
+        return target_real
+
+    # Check against system tempdir
+    if target_real == temp_root or target_real.startswith(temp_prefix):
+        return target_real
+
+    # On macOS, /tmp and /var are symlinks to /private/tmp and /private/var
+    for extra_temp in ("/tmp", "/var/tmp", "/private/tmp", "/private/var"):
+        if os.path.exists(extra_temp):
+            real_extra = os.path.realpath(extra_temp)
+            extra_prefix = real_extra if real_extra.endswith(os.sep) else real_extra + os.sep
+            if target_real == real_extra or target_real.startswith(extra_prefix):
+                return target_real
+
+    raise PathSandboxError(
+        f"[FAIL-CLOSED] Path '{path}' (resolved: '{target_real}') escapes default workspace boundary '{cwd_root}'.",
+        path=path,
+        workspace_root=cwd_root,
+    )

@@ -6,7 +6,8 @@ import json
 import os
 from typing import Any
 
-from jsonschema import Draft7Validator, FormatChecker
+from jsonschema import Draft7Validator, Draft202012Validator, FormatChecker
+from jsonschema.protocols import Validator
 
 
 class SchemaValidationError(Exception):
@@ -39,18 +40,26 @@ def get_schemas_dir() -> str:
     raise FileNotFoundError(f"Could not locate normative schemas directory (checked {repo_schemas} and {cwd_schemas}).")
 
 
+def _validator_class_for(raw_schema: dict[str, Any]) -> type[Validator]:
+    """Selects the jsonschema validator class from the schema's declared $schema dialect."""
+    declared = str(raw_schema.get("$schema", "") or "")
+    if "2020-12" in declared:
+        return Draft202012Validator
+    return Draft7Validator
+
+
 def load_schema(schema_name: str) -> dict[str, Any]:
     """Loads and caches a JSON Schema by canonical name."""
     clean_name = schema_name.replace(".schema.json", "").replace(".json", "")
     if clean_name in _SCHEMA_CACHE:
         return _SCHEMA_CACHE[clean_name]
 
-    filename = f"{clean_name}.schema.json"
     schemas_dir = get_schemas_dir()
-    schema_path = os.path.join(schemas_dir, filename)
-
-    if not os.path.isfile(schema_path):
-        raise FileNotFoundError(f"Normative schema file not found at: {schema_path}")
+    candidates = [f"{clean_name}.schema.json", f"{clean_name}.json"]
+    tried_paths = [os.path.join(schemas_dir, candidate) for candidate in candidates]
+    schema_path = next((path for path in tried_paths if os.path.isfile(path)), None)
+    if schema_path is None:
+        raise FileNotFoundError("Normative schema file not found; tried: " + ", ".join(tried_paths))
 
     with open(schema_path, encoding="utf-8") as f:
         raw_schema = json.load(f)
@@ -58,7 +67,7 @@ def load_schema(schema_name: str) -> dict[str, Any]:
     if not isinstance(raw_schema, dict):
         raise ValueError(f"Schema at {schema_path} must be a JSON object, got {type(raw_schema).__name__}")
 
-    Draft7Validator.check_schema(raw_schema)
+    _validator_class_for(raw_schema).check_schema(raw_schema)
     _SCHEMA_CACHE[clean_name] = raw_schema
     return raw_schema
 
@@ -66,7 +75,7 @@ def load_schema(schema_name: str) -> dict[str, Any]:
 def validate_payload(data: dict[str, Any], schema_name: str) -> None:
     """Validates a payload against a normative JSON Schema in strict fail-closed mode."""
     schema = load_schema(schema_name)
-    validator = Draft7Validator(schema, format_checker=FormatChecker())
+    validator = _validator_class_for(schema)(schema, format_checker=FormatChecker())
     errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
 
     if errors:

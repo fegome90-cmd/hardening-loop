@@ -19,14 +19,14 @@ class DeletePhase(BasePhase):
     def _collect_sources(self, target_path: str) -> dict[str, str]:
         sources = {}
         if os.path.isfile(target_path):
-            with open(target_path, encoding="utf-8", errors="ignore") as f:
+            with open(target_path, encoding="utf-8", errors="replace") as f:
                 sources[target_path] = f.read()
         elif os.path.isdir(target_path):
             for root, _, files in os.walk(target_path):
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
-                        with open(full_path, encoding="utf-8", errors="ignore") as f:
+                        with open(full_path, encoding="utf-8", errors="replace") as f:
                             sources[full_path] = f.read()
         return sources
 
@@ -39,12 +39,16 @@ class DeletePhase(BasePhase):
 
         sources = self._collect_sources(target_path)
         deletion_candidates: list[dict[str, Any]] = []
+        total_ast_nodes = 0
         checks.append(f"Scanned {len(sources)} source file(s) for deletion candidates and over-privileged harnesses")
+
+        is_framework_target = "hardening_loop" in target_path or any("hardening_loop" in p for p in sources.keys())
 
         for path, code in sources.items():
             fname = os.path.basename(path)
             try:
                 tree = ast.parse(code, filename=path)
+                total_ast_nodes += len(list(ast.walk(tree)))
             except SyntaxError:
                 continue
 
@@ -115,8 +119,8 @@ class DeletePhase(BasePhase):
                             }
                         )
 
-                # 4. Auto-promotion bypass functions
-                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # 4. Auto-promotion bypass functions (only for framework targets)
+                elif is_framework_target and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     if node.name in ("auto_promote", "skip_review", "bypass_gate"):
                         deletion_candidates.append(
                             {
@@ -158,6 +162,7 @@ class DeletePhase(BasePhase):
         payload = {
             "target": target_path,
             "total_files_scanned": len(sources),
+            "total_ast_nodes_visited": total_ast_nodes,
             "deletion_candidates": deletion_candidates,
             "deletion_candidates_count": len(deletion_candidates),
             "diff_patch": diff,
