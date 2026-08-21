@@ -35,7 +35,11 @@ def test_valid_state_transitions():
     StateMachine.transition(wu, HardeningState.ADMITTED, "Approved by human reviewer")
     assert wu.state == HardeningState.ADMITTED
 
-    # ADMITTED -> CANONICAL
+    # ADMITTED -> READY_FOR_PR_REVIEW
+    StateMachine.transition(wu, HardeningState.READY_FOR_PR_REVIEW, "CI tests pass")
+    assert wu.state == HardeningState.READY_FOR_PR_REVIEW
+
+    # READY_FOR_PR_REVIEW -> CANONICAL
     StateMachine.transition(wu, HardeningState.CANONICAL, "Linter rule active")
     assert wu.state == HardeningState.CANONICAL
 

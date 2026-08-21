@@ -104,6 +104,7 @@ class HardeningState(str, Enum):
     VERIFIED = "VERIFIED"
     KNOWLEDGE_CANDIDATE = "KNOWLEDGE_CANDIDATE"
     ADMITTED = "ADMITTED"
+    READY_FOR_PR_REVIEW = "READY_FOR_PR_REVIEW"
     CANONICAL = "CANONICAL"
     DEPRECATED = "DEPRECATED"
 
@@ -199,7 +200,7 @@ class KnowledgeCandidate:
     reviewer: str | None = None
     reviewed_at: str | None = None
     review_notes: str | None = None
-    created_at: str = "CANONICAL_EPOCH"
+    created_at: str = "1970-01-01T00:00:00+00:00"
 
     def to_dict(self) -> dict[str, Any]:
         return {

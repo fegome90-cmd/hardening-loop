@@ -15,7 +15,8 @@ VALID_TRANSITIONS: dict[HardeningState, set[HardeningState]] = {
     HardeningState.PATCH_PROPOSED: {HardeningState.VERIFIED, HardeningState.AUDITING},
     HardeningState.VERIFIED: {HardeningState.KNOWLEDGE_CANDIDATE, HardeningState.AUDITING},
     HardeningState.KNOWLEDGE_CANDIDATE: {HardeningState.ADMITTED, HardeningState.DEPRECATED},
-    HardeningState.ADMITTED: {HardeningState.CANONICAL, HardeningState.DEPRECATED},
+    HardeningState.ADMITTED: {HardeningState.READY_FOR_PR_REVIEW, HardeningState.CANONICAL, HardeningState.DEPRECATED},
+    HardeningState.READY_FOR_PR_REVIEW: {HardeningState.CANONICAL, HardeningState.DEPRECATED},
     HardeningState.CANONICAL: {HardeningState.DEPRECATED},
     HardeningState.DEPRECATED: set(),
 }

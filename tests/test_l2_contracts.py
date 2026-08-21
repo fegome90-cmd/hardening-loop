@@ -26,6 +26,9 @@ def test_state_machine_valid_progression():
     StateMachine.transition(wu, HardeningState.ADMITTED)
     assert wu.state == HardeningState.ADMITTED
 
+    StateMachine.transition(wu, HardeningState.READY_FOR_PR_REVIEW)
+    assert wu.state == HardeningState.READY_FOR_PR_REVIEW
+
     StateMachine.transition(wu, HardeningState.CANONICAL)
     assert wu.state == HardeningState.CANONICAL
 
@@ -38,6 +41,9 @@ def test_state_machine_invalid_skips_fail_closed():
 
     with pytest.raises(InvalidStateTransitionError):
         StateMachine.transition(wu, HardeningState.CANONICAL)
+
+    with pytest.raises(InvalidStateTransitionError):
+        StateMachine.transition(wu, HardeningState.READY_FOR_PR_REVIEW)
 
     with pytest.raises(InvalidStateTransitionError):
         StateMachine.transition(wu, HardeningState.ADMITTED)

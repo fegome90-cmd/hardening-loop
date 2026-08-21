@@ -35,6 +35,7 @@
         "VERIFIED",
         "KNOWLEDGE_CANDIDATE",
         "ADMITTED",
+        "READY_FOR_PR_REVIEW",
         "CANONICAL",
         "DEPRECATED"
       ]

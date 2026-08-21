@@ -36,17 +36,17 @@ class CodifyPhase(BasePhase):
             candidates.append(
                 KnowledgeAdmissionGate.create_candidate(
                     candidate_id=cid_1,
-                    observation="Evidence envelopes must track both method_version and host environment_hash for hermetic reproducibility.",
+                    observation="Evidence envelopes must decouple canonical evidence from runtime receipts and track method_version, schema_version, and execution_context_hash for hermetic reproducibility.",
                     category=FindingCategory.PROVENANCE_GAP,
                     severity=FindingSeverity.HIGH,
-                    finding_description="Without method_version and environment_hash, evidence artifacts cannot be cross-validated across different CI or OS environments.",
+                    finding_description="Without method_version, schema_version, and execution_context_hash, evidence artifacts cannot be cross-validated across different CI or host environments.",
                     target_lines=[1, 2, 3],
                     rule_id="RULE-EVIDENCE-001",
-                    rule_title="Mandatory Method & Environment Provenance in Evidence Envelopes",
+                    rule_title="Decoupled Canonical Evidence and Execution Context in Envelopes",
                     enforcement_mechanism="SCHEMA_GUARD",
-                    rationale="Hermetic reproducibility requires capturing the exact runtime environment digest and framework version.",
+                    rationale="Hermetic reproducibility requires capturing the exact runtime execution context digest, schema version, and framework version.",
                     evidence_references=evidence_refs,
-                    suggested_fix="Include method_version and environment_hash as required schema properties in evidence_envelope.schema.json.",
+                    suggested_fix="Include canonical_evidence sub-object with execution_context_hash as required schema properties in evidence_envelope.schema.json.",
                 )
             )
 

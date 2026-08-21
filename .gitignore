@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 venv/
 ENV/
+env/
 
 # Testing & Quality Tooling Caches
 .pytest_cache/
@@ -24,9 +25,19 @@ dist/
 
 # System & Editor
 .DS_Store
-.vscode/
+.DS_Store?
+._*
+*.swp
+*.swo
+*~
 .idea/
+.vscode/
 
 # Local Agent & Runtime State
 .atl/
 _ctx/
+
+# Ephemeral Evidence & Transient Test Dumps
+evidence/self-audit/
+evidence/test-*/
+evidence/tmp-*/

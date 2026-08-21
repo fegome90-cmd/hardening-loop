@@ -100,17 +100,19 @@ class QuestionPhase(BasePhase):
             )
 
         # 3. Audit provenance requirements
-        has_provenance = "method_version" in combined_code and "environment_hash" in combined_code
+        has_provenance = "method_version" in combined_code and (
+            "execution_context_hash" in combined_code or "environment_hash" in combined_code
+        )
         requirements.append(
             {
                 "id": f"REQ-SEC-{len(requirements) + 1:03d}",
                 "type": RequirementType.SECURITY_CONSTRAINT.value,
-                "statement": "All evidence envelopes must declare method version and host environment hash.",
+                "statement": "All evidence envelopes must declare method version and execution context hash.",
                 "source": "evidence_provenance",
                 "justification_valid": True,
-                "audit_finding": "Provenace metadata present in envelopes"
+                "audit_finding": "Provenance metadata present in envelopes"
                 if has_provenance
-                else "Missing explicit method_version/environment_hash tracking",
+                else "Missing explicit method_version/execution_context_hash tracking",
             }
         )
 

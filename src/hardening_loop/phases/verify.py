@@ -56,13 +56,15 @@ class VerifyPhase(BasePhase):
         safety_checks = []
 
         # Check 1: Provenance metadata
-        has_provenance = "method_version" in combined_code and "environment_hash" in combined_code
+        has_provenance = "method_version" in combined_code and (
+            "execution_context_hash" in combined_code or "environment_hash" in combined_code
+        )
         safety_checks.append(
             {
                 "check": "envelope_provenance_fields",
                 "passed": bool(has_provenance),
                 "severity_if_failed": "MEDIUM",
-                "details": "Checking if EvidenceEnvelope includes method_version and environment_hash.",
+                "details": "Checking if EvidenceEnvelope includes method_version and execution_context_hash.",
             }
         )
 
