@@ -4,13 +4,13 @@ import hashlib
 import importlib
 import json
 import re
-import subprocess
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import jsonschema
 import pytest
 
+from hardening_loop.telemetry import EventValidationError
 
 RUN_ID = "hl_test_telemetry_v02"
 TRACE_ID = "tr_test_telemetry_v02"
@@ -86,13 +86,13 @@ def test_event_without_run_id_fails_validation() -> None:
     telemetry = telemetry_module()
     event = make_event()
     del event["run_id"]
-    with pytest.raises(Exception):
+    with pytest.raises((EventValidationError, ValueError, KeyError, jsonschema.ValidationError, TypeError)):
         telemetry.validate_event(event)
 
 
 def test_event_with_noncanonical_status_fails_validation() -> None:
     telemetry = telemetry_module()
-    with pytest.raises(Exception):
+    with pytest.raises((EventValidationError, ValueError, KeyError, jsonschema.ValidationError, TypeError)):
         telemetry.validate_event(make_event(status="SUCCESS"))
 
 
@@ -105,7 +105,7 @@ def test_event_with_noncanonical_phase_fails_validation() -> None:
         phase="not-a-phase",
         phase_index=0,
     )
-    with pytest.raises(Exception):
+    with pytest.raises((EventValidationError, ValueError, KeyError, jsonschema.ValidationError, TypeError)):
         telemetry.validate_event(event)
 
 
@@ -147,7 +147,7 @@ def test_manifest_fails_when_obligatory_artifact_is_missing(tmp_path: Path) -> N
         run_id=RUN_ID,
         trace_id=TRACE_ID,
     )
-    with pytest.raises(Exception):
+    with pytest.raises((EventValidationError, ValueError, FileNotFoundError, jsonschema.ValidationError)):
         emitter.write_manifest(
             final_status="PASS",
             artifacts=[tmp_path / "missing.patch.diff"],
@@ -172,7 +172,7 @@ def test_prohibited_properties_are_removed_or_rejected() -> None:
         tool_output="full tool output",
         secret="secret",
     )
-    with pytest.raises(Exception):
+    with pytest.raises((EventValidationError, ValueError, KeyError, jsonschema.ValidationError, TypeError)):
         sanitized = telemetry.sanitize_event(event)
     if "sanitized" in locals():
         for key in ("prompt", "system_prompt", "output", "tool_output", "secret"):

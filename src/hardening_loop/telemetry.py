@@ -14,7 +14,6 @@ from typing import Any
 
 from .models import utc_now_iso
 
-
 # ---------------------------------------------------------------------------
 # v0.2 event validation and WAL core (fail-closed)
 # ---------------------------------------------------------------------------
@@ -118,8 +117,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
     errors = sorted(validator.iter_errors(manifest), key=lambda error: list(error.absolute_path))
     if errors:
         details = "; ".join(
-            f"{'/'.join(str(part) for part in error.absolute_path) or '<root>'}: {error.message}"
-            for error in errors
+            f"{'/'.join(str(part) for part in error.absolute_path) or '<root>'}: {error.message}" for error in errors
         )
         raise EventValidationError("Invalid v0.2 telemetry manifest: " + details)
 
@@ -228,7 +226,7 @@ class WalWriter:
             self._fh.close()
             self._closed = True
 
-    def __enter__(self) -> "WalWriter":
+    def __enter__(self) -> WalWriter:
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
@@ -250,7 +248,7 @@ class TelemetryEmitter:
         self._span_counter = 0
         self._run_span_id: str | None = None
         self._phase_spans: dict[str, str] = {}
-        self._phase_state: dict[str, tuple[int, float]] = {}
+        self._phase_state: dict[str, tuple[int | None, float]] = {}
         self._run_context: dict[str, Any] = {}
 
     def _next_span_id(self) -> str:
@@ -296,12 +294,22 @@ class TelemetryEmitter:
         )
 
     def complete_phase(
-        self, phase: str, status: str = "PASS", phase_index: int | None = None, duration_ms: float | None = None, **fields: Any
+        self,
+        phase: str,
+        status: str = "PASS",
+        phase_index: int | None = None,
+        duration_ms: float | None = None,
+        **fields: Any,
     ) -> None:
         self._finish_phase(phase, "hardening_phase_completed", status, phase_index, duration_ms, fields)
 
     def fail_phase(
-        self, phase: str, status: str = "FAIL", phase_index: int | None = None, duration_ms: float | None = None, **fields: Any
+        self,
+        phase: str,
+        status: str = "FAIL",
+        phase_index: int | None = None,
+        duration_ms: float | None = None,
+        **fields: Any,
     ) -> None:
         self._finish_phase(phase, "hardening_phase_failed", status, phase_index, duration_ms, fields)
 
@@ -440,7 +448,9 @@ class TelemetryEmitter:
         manifest["integrity"]["manifest_hash"] = hashlib.sha256(canonical).hexdigest()
         _validate_manifest(manifest)
         manifest_path = os.path.join(self.output_dir, "evidence_manifest.json")
-        manifest_bytes = (json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode()
+        manifest_bytes = (
+            json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+        ).encode()
         with open(manifest_path, "w", encoding="utf-8") as manifest_file:
             manifest_file.write(manifest_bytes.decode())
         return manifest
@@ -475,7 +485,9 @@ class TelemetryEmitter:
                     events.append(json.loads(line))
 
         gate_events = [
-            event for event in events if event.get("event_name") in {"hardening_gate_evaluated", "hardening_gate_blocked"}
+            event
+            for event in events
+            if event.get("event_name") in {"hardening_gate_evaluated", "hardening_gate_blocked"}
         ]
         decision_events = [event for event in events if event.get("event_name") == "hardening_decision_recorded"]
         gate_path = os.path.join(self.output_dir, "gate_results.json")
@@ -489,18 +501,26 @@ class TelemetryEmitter:
             for event in decision_events:
                 decision_file.write(json.dumps(event, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n")
         with open(hashes_path, "w", encoding="utf-8") as hashes_file:
-            json.dump(sorted(self._artifacts, key=lambda item: item["path"]), hashes_file, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+            json.dump(
+                sorted(self._artifacts, key=lambda item: item["path"]),
+                hashes_file,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            )
             hashes_file.write("\n")
         with open(structured_path, "w", encoding="utf-8") as structured_file:
-            structured_file.write("\n".join(json.dumps(event, sort_keys=True, separators=(",", ":"), ensure_ascii=True) for event in events))
+            structured_file.write(
+                "\n".join(
+                    json.dumps(event, sort_keys=True, separators=(",", ":"), ensure_ascii=True) for event in events
+                )
+            )
             if events:
                 structured_file.write("\n")
         self._register_artifact_hash(gate_path, "evidence")
         self._register_artifact_hash(decision_path, "evidence")
         self._register_artifact_hash(hashes_path, "evidence")
         self._register_artifact_hash(structured_path, "evidence")
-
-
 
 
 def get_process_memory_mb() -> float:
