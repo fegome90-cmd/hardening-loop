@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hardening Loop Manifest v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "trace_id",
+    "created_at",
+    "git_sha",
+    "dirty_worktree",
+    "final_status",
+    "artifacts",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "hardening-loop.manifest.v0.2"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^tr_[A-Za-z0-9._-]+$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "dirty_worktree": {
+      "type": "boolean"
+    },
+    "final_status": {
+      "enum": [
+        "STARTED",
+        "PASS",
+        "WARN",
+        "FAIL",
+        "BLOCKED",
+        "SKIPPED",
+        "ABORTED",
+        "ERROR"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "const": "patch.diff"
+              },
+              "type": {
+                "const": "patch"
+              }
+            },
+            "required": ["path", "type"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "const": "telemetry.jsonl"
+              }
+            },
+            "required": ["path"]
+          }
+        }
+      ]
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hash_algorithm",
+        "manifest_hash",
+        "artifact_count",
+        "integrity_status"
+      ],
+      "properties": {
+        "hash_algorithm": {
+          "const": "sha256"
+        },
+        "manifest_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "artifact_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "integrity_status": {
+          "enum": ["PASS", "WARN", "FAIL"]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "type", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[^\\u0000]+$"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
