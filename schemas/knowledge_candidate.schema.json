@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "KnowledgeCandidateAndAdmission",
+  "description": "Schema for Knowledge Candidates passing through the Knowledge Admission Gate",
+  "type": "object",
+  "required": [
+    "candidate_id",
+    "observation",
+    "finding",
+    "rule_proposal",
+    "evidence_references",
+    "admission_status",
+    "created_at"
+  ],
+  "properties": {
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^kc-[a-f0-9]{8,16}$"
+    },
+    "observation": {
+      "type": "string",
+      "description": "Raw empirical observation from target analysis or test execution"
+    },
+    "finding": {
+      "type": "object",
+      "required": ["category", "severity", "description", "target_lines"],
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["SECURITY", "CONTRACT_BREACH", "UNCLEAR_INTERFACE", "RESOURCE_LEAK", "DEAD_HARNESS"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+        },
+        "description": { "type": "string" },
+        "target_lines": {
+          "type": "array",
+          "items": { "type": "integer" }
+        }
+      }
+    },
+    "rule_proposal": {
+      "type": "object",
+      "required": ["rule_id", "title", "enforcement_mechanism", "rationale"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "title": { "type": "string" },
+        "enforcement_mechanism": {
+          "type": "string",
+          "enum": ["LINTER", "TEST_FIXTURE", "CONTRACT_VALIDATOR", "SCHEMA_GUARD", "PRE_COMMIT"]
+        },
+        "rationale": { "type": "string" },
+        "suggested_fix": { "type": "string" }
+      }
+    },
+    "evidence_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^evi-[a-f0-9]{8,16}$"
+      }
+    },
+    "admission_status": {
+      "type": "string",
+      "enum": ["PENDING_REVIEW", "ACCEPTED", "REJECTED", "OBSOLETE"]
+    },
+    "reviewer": {
+      "type": ["string", "null"]
+    },
+    "reviewed_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "review_notes": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

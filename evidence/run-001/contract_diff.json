@@ -1,0 +1,64 @@
+{
+  "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
+  "interfaces_audited": 4,
+  "functions": [
+    {
+      "name": "call_model",
+      "args": [
+        "messages",
+        "model",
+        "max_tokens"
+      ],
+      "line": 27,
+      "has_docstring": false
+    },
+    {
+      "name": "parse_tool_call",
+      "args": [
+        "text"
+      ],
+      "line": 40,
+      "has_docstring": false
+    },
+    {
+      "name": "execute",
+      "args": [
+        "fn",
+        "params"
+      ],
+      "line": 51,
+      "has_docstring": true
+    },
+    {
+      "name": "main",
+      "args": [],
+      "line": 79,
+      "has_docstring": false
+    }
+  ],
+  "contract_analysis": [
+    {
+      "interface": "call_model(messages, model, max_tokens)",
+      "status": "CLEAN",
+      "observation": "Standard HTTP client via urllib.",
+      "recommendation": "Keep intact.",
+      "breaking_change": false
+    },
+    {
+      "interface": "parse_tool_call(text)",
+      "status": "FRAGILE_REGEX",
+      "observation": "Uses regex for XML tag extraction. Functional for expected model format.",
+      "recommendation": "Retain signature, add fallback handling for malformed tags.",
+      "breaking_change": false
+    },
+    {
+      "interface": "execute(fn, params)",
+      "status": "COMPLEX_SIDE_EFFECTS",
+      "observation": "Handles both process execution (bash) and filesystem I/O (read) without explicit schema validation.",
+      "recommendation": "Preserve function signature execute(fn, params) to maintain compatibility, but enforce typed parameter parsing internally.",
+      "breaking_change": false
+    }
+  ],
+  "interface_breaking_changes_detected": 0,
+  "simplification_summary": "All proposed hardenings preserve top-level signatures (execute, parse_tool_call, call_model, main)."
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EvidenceEnvelope",
+  "description": "Immutable envelope recording deterministic execution evidence for a hardening phase",
+  "type": "object",
+  "required": [
+    "evidence_id",
+    "producer",
+    "timestamp",
+    "phase",
+    "input_hash",
+    "output_hash",
+    "artifact",
+    "verification",
+    "status"
+  ],
+  "properties": {
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^evi-[a-f0-9]{8,16}$"
+    },
+    "producer": {
+      "type": "string",
+      "description": "Tool/module name and version generating the evidence"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["question", "delete", "simplify", "verify", "codify"]
+    },
+    "input_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of all input files and parameters"
+    },
+    "output_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of the generated artifact content"
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["path", "artifact_type", "payload"],
+      "properties": {
+        "path": { "type": "string" },
+        "artifact_type": { "type": "string" },
+        "payload": { "type": "object" }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["passed", "checks", "duration_ms"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "checks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "duration_ms": { "type": "number" },
+        "error": { "type": ["string", "null"] }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "BLOCKED", "WARN"]
+    }
+  },
+  "additionalProperties": false
+}

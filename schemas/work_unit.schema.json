@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkUnit",
+  "description": "Schema for an atomic hardening WorkUnit under Algorithmic Code Hardening Loop v0.3",
+  "type": "object",
+  "required": [
+    "work_unit_id",
+    "target_path",
+    "target_hash",
+    "state",
+    "created_at",
+    "updated_at",
+    "phases_executed",
+    "metadata"
+  ],
+  "properties": {
+    "work_unit_id": {
+      "type": "string",
+      "pattern": "^wu-[a-f0-9]{8,16}$"
+    },
+    "target_path": {
+      "type": "string"
+    },
+    "target_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of the target source file/module baseline"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "AUDITING",
+        "PATCH_PROPOSED",
+        "VERIFIED",
+        "KNOWLEDGE_CANDIDATE",
+        "ADMITTED",
+        "CANONICAL",
+        "DEPRECATED"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "phases_executed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["question", "delete", "simplify", "verify", "codify"]
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "author": { "type": "string" },
+        "description": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

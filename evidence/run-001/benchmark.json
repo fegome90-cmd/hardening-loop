@@ -1,0 +1,7 @@
+{
+  "ast_parse_ms": 0.452,
+  "safety_audit_ms": 0.034,
+  "total_verification_loop_ms": 0.485,
+  "loop_target_threshold_ms": 100.0,
+  "meets_fast_feedback_sla": true
+}

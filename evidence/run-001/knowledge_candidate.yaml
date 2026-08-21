@@ -1,0 +1,85 @@
+- candidate_id: kc-sec-whitelist-01
+  observation: Target tool wrapper invokes bash via generic shell without enforcing
+    an explicit executable whitelist.
+  finding:
+    category: SECURITY
+    severity: HIGH
+    description: Generic subprocess execution without token/command whitelist exposes
+      runner to arbitrary command injection.
+    target_lines:
+    - 53
+    - 54
+    - 58
+    - 59
+  rule_proposal:
+    rule_id: RULE-SEC-001
+    title: Mandatory Executable Whitelist for Tool Call Runners
+    enforcement_mechanism: CONTRACT_VALIDATOR
+    rationale: LLM tool agents must not be granted open shell access; commands must
+      be validated against an approved executable set.
+    suggested_fix: Introduce an explicit set of allowed binaries (e.g. {'git', 'pytest',
+      'make'}) before subprocess invocation.
+  evidence_references:
+  - evi-30d6166e3ed1
+  - evi-88bc29eb6433
+  - evi-30c33d138673
+  - evi-fad79a536ef1
+  admission_status: ACCEPTED
+  reviewer: felipe-senior-architect
+  reviewed_at: '2026-08-21T03:41:23.853728+00:00'
+  review_notes: Audited and verified against baseline v0.3
+  created_at: '2026-08-21T03:36:24.473932+00:00'
+- candidate_id: kc-sec-sandbox-02
+  observation: Target read tool accesses filesystem paths directly without verifying
+    workspace root containment.
+  finding:
+    category: SECURITY
+    severity: HIGH
+    description: Arbitrary path reading allows directory traversal outside workspace.
+    target_lines:
+    - 68
+    - 69
+    - 71
+  rule_proposal:
+    rule_id: RULE-SEC-002
+    title: Workspace Path Sandboxing for Read Tools
+    enforcement_mechanism: SCHEMA_GUARD
+    rationale: Prevent leakage of credentials and sensitive dotfiles outside project
+      scope.
+    suggested_fix: Resolve paths with os.path.realpath and assert startswith(workspace_root).
+  evidence_references:
+  - evi-30d6166e3ed1
+  - evi-88bc29eb6433
+  - evi-30c33d138673
+  - evi-fad79a536ef1
+  admission_status: ACCEPTED
+  reviewer: felipe-senior-architect
+  reviewed_at: '2026-08-21T03:41:23.854767+00:00'
+  review_notes: Audited and verified against baseline v0.3
+  created_at: '2026-08-21T03:36:24.473937+00:00'
+- candidate_id: kc-contract-cwd-03
+  observation: Target hardcodes developer absolute directory in execution harness.
+  finding:
+    category: UNCLEAR_INTERFACE
+    severity: MEDIUM
+    description: Hardcoded environment cwd makes code non-portable across machines
+      and test environments.
+    target_lines:
+    - 61
+  rule_proposal:
+    rule_id: RULE-ARCH-001
+    title: No Hardcoded Absolute Paths in Tool Runners
+    enforcement_mechanism: LINTER
+    rationale: Environment paths must be injected via CLI arguments or environment
+      variables.
+    suggested_fix: Use params.get('cwd', os.getcwd()) and expose --workspace CLI flag.
+  evidence_references:
+  - evi-30d6166e3ed1
+  - evi-88bc29eb6433
+  - evi-30c33d138673
+  - evi-fad79a536ef1
+  admission_status: ACCEPTED
+  reviewer: felipe-senior-architect
+  reviewed_at: '2026-08-21T03:41:23.855647+00:00'
+  review_notes: Audited and verified against baseline v0.3
+  created_at: '2026-08-21T03:36:24.473940+00:00'

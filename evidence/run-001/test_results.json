@@ -1,0 +1,29 @@
+{
+  "total_checks": 4,
+  "passed_checks": 1,
+  "failed_checks": 3,
+  "ast_validation": {
+    "passed": true,
+    "duration_ms": 0.452
+  },
+  "safety_checks": [
+    {
+      "check": "tool_whitelist_enforcement",
+      "passed": false,
+      "severity_if_failed": "HIGH",
+      "details": "Checking if tool invocation is guarded by a strict whitelist."
+    },
+    {
+      "check": "file_reader_workspace_boundary",
+      "passed": false,
+      "severity_if_failed": "HIGH",
+      "details": "Checking if file read tool verifies directory boundaries."
+    },
+    {
+      "check": "structured_evidence_logging",
+      "passed": false,
+      "severity_if_failed": "MEDIUM",
+      "details": "Checking if tool executions produce structured audit logs."
+    }
+  ]
+}

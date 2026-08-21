@@ -1,0 +1,30 @@
+[
+  {
+    "candidate_id": "DEL-001",
+    "target": "unconstrained_shell_harness",
+    "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
+    "action": "REPLACE_WITH_STRUCTURED_RUNNER",
+    "severity": "HIGH"
+  },
+  {
+    "candidate_id": "DEL-002",
+    "target": "hardcoded_cwd_string",
+    "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
+    "action": "DELETE_AND_PARAMETERIZE",
+    "severity": "MEDIUM"
+  },
+  {
+    "candidate_id": "DEL-003",
+    "target": "unsandboxed_open_call",
+    "rationale": "Arbitrary file reading allows potential directory traversal beyond repo bounds.",
+    "action": "REPLACE_WITH_SANDBOXED_RESOLVER",
+    "severity": "HIGH"
+  },
+  {
+    "candidate_id": "DEL-004",
+    "target": "unstructured_stderr_logging",
+    "rationale": "Direct print statements to sys.stderr lack deterministic evidence logging and hashing.",
+    "action": "REPLACE_WITH_EVIDENCE_ENVELOPE",
+    "severity": "MEDIUM"
+  }
+]

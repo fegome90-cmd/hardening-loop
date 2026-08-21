@@ -1,0 +1,44 @@
+{
+  "work_unit_id": "wu-344a8b52f4b8",
+  "target_path": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
+  "target_hash": "344a8b52f4b841d712529fd652917648f9f7b2125a6784e7ef90a0939baec778",
+  "state": "KNOWLEDGE_CANDIDATE",
+  "created_at": "2026-08-21T03:36:24.469412+00:00",
+  "updated_at": "2026-08-21T03:36:24.475226+00:00",
+  "phases_executed": [
+    "question",
+    "delete",
+    "simplify",
+    "verify",
+    "codify"
+  ],
+  "metadata": {
+    "runner_version": "0.1.0",
+    "transition_history": [
+      {
+        "from": "AUDITING",
+        "to": "AUDITING",
+        "reason": "Starting hardening run",
+        "timestamp": "2026-08-21T03:36:24.469575+00:00"
+      },
+      {
+        "from": "PATCH_PROPOSED",
+        "to": "PATCH_PROPOSED",
+        "reason": "Audit and simplification complete",
+        "timestamp": "2026-08-21T03:36:24.473082+00:00"
+      },
+      {
+        "from": "VERIFIED",
+        "to": "VERIFIED",
+        "reason": "Verification tests passed",
+        "timestamp": "2026-08-21T03:36:24.473888+00:00"
+      },
+      {
+        "from": "KNOWLEDGE_CANDIDATE",
+        "to": "KNOWLEDGE_CANDIDATE",
+        "reason": "Knowledge candidates formulated",
+        "timestamp": "2026-08-21T03:36:24.475226+00:00"
+      }
+    ]
+  }
+}

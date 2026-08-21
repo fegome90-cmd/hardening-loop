@@ -1,0 +1,11 @@
+--- a/qwen-tool-loop.py
++++ b/qwen-tool-loop.py
+@@ -58,7 +58,7 @@
+             p = subprocess.run(
+                 ["/bin/zsh", "-c", cmd],
+                 capture_output=True, text=True, timeout=300,
+-                cwd="/Users/felipe_gonzalez/Developer/examen_grado",
++                cwd=params.get("cwd", os.getcwd()),
+             )
+             return {"ok": True, "exit": p.returncode, "stdout": p.stdout[-8000:], "stderr": p.stderr[-4000:]}
+         except subprocess.TimeoutExpired:
