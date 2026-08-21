@@ -37,6 +37,7 @@ dist/
 .atl/
 _ctx/
 .mimosa/
+wiki
 
 # Ephemeral Evidence & Transient Test Dumps
 evidence/self-audit/

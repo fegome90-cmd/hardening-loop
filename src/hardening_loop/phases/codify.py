@@ -47,6 +47,7 @@ class CodifyPhase(BasePhase):
                     rationale="Hermetic reproducibility requires capturing the exact runtime execution context digest, schema version, and framework version.",
                     evidence_references=evidence_refs,
                     suggested_fix="Include canonical_evidence sub-object with execution_context_hash as required schema properties in evidence_envelope.schema.json.",
+                    created_at="2026-08-21T00:00:00Z",
                 )
             )
 
@@ -66,6 +67,7 @@ class CodifyPhase(BasePhase):
                     rationale="The knowledge base remains trustworthy only if all promoted rules have verifiable human/curator provenance.",
                     evidence_references=evidence_refs,
                     suggested_fix="Enforce reviewer.strip() check in KnowledgeAdmissionGate.review_candidate.",
+                    created_at="2026-08-21T00:00:00Z",
                 )
             )
         else:
@@ -86,6 +88,7 @@ class CodifyPhase(BasePhase):
                     rationale="LLM tool agents must not be granted open shell access; commands must be validated against an approved executable set.",
                     evidence_references=evidence_refs,
                     suggested_fix="Introduce an explicit set of allowed binaries (e.g. {'git', 'pytest', 'make'}) before subprocess invocation.",
+                    created_at="2026-08-21T00:00:00Z",
                 )
             )
             candidates.append(
@@ -102,6 +105,7 @@ class CodifyPhase(BasePhase):
                     rationale="Prevent leakage of credentials and sensitive dotfiles outside project scope.",
                     evidence_references=evidence_refs,
                     suggested_fix="Resolve paths with os.path.realpath and assert startswith(workspace_root).",
+                    created_at="2026-08-21T00:00:00Z",
                 )
             )
 

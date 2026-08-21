@@ -150,8 +150,8 @@ def handle_run(args: argparse.Namespace) -> int:
                     print(f"Final State: {runner.work_unit.state.value}")
                     print(f"Evidence artifacts successfully generated in {output_dir}")
 
-        all_passed = all(e.status == VerificationStatus.PASS for e in runner.envelopes)
-        return 0 if all_passed else 1
+        has_failures = any(e.status == VerificationStatus.FAIL for e in runner.envelopes)
+        return 1 if has_failures else 0
 
     except SchemaValidationError as e:
         print(f"Schema Validation Violation: {e}", file=sys.stderr)

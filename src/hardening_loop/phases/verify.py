@@ -2,6 +2,7 @@
 
 import ast
 import os
+import re
 import time
 from typing import Any
 
@@ -42,56 +43,102 @@ class VerifyPhase(BasePhase):
         # 1. AST Validation Check across all files
         t0 = time.perf_counter()
         ast_errors = []
+        parsed_trees: dict[str, ast.Module] = {}
         for path, code in sources.items():
             try:
-                ast.parse(code, filename=path)
+                tree = ast.parse(code, filename=path)
+                parsed_trees[path] = tree
             except SyntaxError as e:
-                ast_errors.append(f"{os.path.basename(path)}: {e}")
+                ast_errors.append(f"{os.path.basename(path)}:{e.lineno or 1}: {e.msg}")
+
         ast_duration_ms = (time.perf_counter() - t0) * 1000.0
         ast_pass = len(ast_errors) == 0
         checks.append(f"AST compilation passed for {len(sources)} source file(s)")
 
-        # 2. Invariant & Safety Checks
+        # 2. Target-Level Safety & Invariant Checks
         t1 = time.perf_counter()
-        safety_checks = []
+        safety_checks: list[dict[str, Any]] = []
 
-        # Check 1: Provenance metadata
-        has_provenance = "method_version" in combined_code and (
-            "execution_context_hash" in combined_code or "environment_hash" in combined_code
-        )
+        # Check 1: eval/exec dangerous dynamic execution check (CRITICAL)
+        eval_calls: list[str] = []
+        for path, tree in parsed_trees.items():
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    func = node.func
+                    if isinstance(func, ast.Name) and func.id in ("eval", "exec"):
+                        eval_calls.append(f"{os.path.basename(path)}:{node.lineno}")
+
         safety_checks.append(
             {
-                "check": "envelope_provenance_fields",
-                "passed": bool(has_provenance),
-                "severity_if_failed": "MEDIUM",
-                "details": "Checking if EvidenceEnvelope includes method_version and execution_context_hash.",
-            }
-        )
-
-        # Check 2: Admission Gate enforcement
-        has_admission_gate = "KnowledgeAdmissionGate" in combined_code and "PENDING_REVIEW" in combined_code
-        safety_checks.append(
-            {
-                "check": "knowledge_admission_gate_invariants",
-                "passed": bool(has_admission_gate),
+                "check": "eval_exec_safety",
+                "passed": len(eval_calls) == 0,
                 "severity_if_failed": "CRITICAL",
-                "details": "Checking if admission gate forbids auto-canonical promotion.",
+                "details": f"Detected dynamic eval/exec at: {', '.join(eval_calls)}"
+                if eval_calls
+                else "No dynamic eval/exec detected in target.",
             }
         )
 
-        # Check 3: State Machine transitions
-        has_states = "HardeningState" in combined_code and "StateMachine" in combined_code
+        # Check 2: Unconstrained shell execution check (HIGH)
+        unsafe_shell_calls: list[str] = []
+        for path, tree in parsed_trees.items():
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    # Check os.system(...)
+                    if isinstance(node.func, ast.Attribute) and node.func.attr == "system":
+                        if isinstance(node.func.value, ast.Name) and node.func.value.id == "os":
+                            unsafe_shell_calls.append(f"{os.path.basename(path)}:{node.lineno} (os.system)")
+                    # Check subprocess.run(..., shell=True)
+                    elif isinstance(node.func, ast.Attribute) and node.func.attr in ("run", "Popen"):
+                        for kw in node.keywords:
+                            if kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
+                                unsafe_shell_calls.append(
+                                    f"{os.path.basename(path)}:{node.lineno} (subprocess shell=True)"
+                                )
+
         safety_checks.append(
             {
-                "check": "state_machine_acyclic_transitions",
-                "passed": bool(has_states),
+                "check": "unconstrained_shell_safety",
+                "passed": len(unsafe_shell_calls) == 0,
                 "severity_if_failed": "HIGH",
-                "details": "Checking if valid state lifecycle transitions are defined.",
+                "details": f"Unsafe shell invocations: {', '.join(unsafe_shell_calls)}"
+                if unsafe_shell_calls
+                else "No unconstrained shell execution detected.",
             }
         )
+
+        # Check 3: Hardcoded environment paths check (MEDIUM)
+        hardcoded_paths = re.findall(r'["\'](/(?:Users|home)/[^"\']+)["\']', combined_code)
+        safety_checks.append(
+            {
+                "check": "relocatable_paths_check",
+                "passed": len(hardcoded_paths) == 0,
+                "severity_if_failed": "MEDIUM",
+                "details": f"Hardcoded developer paths found: {', '.join(set(hardcoded_paths))}"
+                if hardcoded_paths
+                else "Target is relocatable without hardcoded user environment paths.",
+            }
+        )
+
+        # Check 4: Framework Invariant Checks (ONLY when auditing hardening_loop itself)
+        is_framework_target = "hardening_loop" in os.path.realpath(target_path) and "src/hardening_loop" in target_path
+        if is_framework_target:
+            has_admission_gate = "KnowledgeAdmissionGate" in combined_code and "PENDING_REVIEW" in combined_code
+            safety_checks.append(
+                {
+                    "check": "knowledge_admission_gate_invariants",
+                    "passed": bool(has_admission_gate),
+                    "severity_if_failed": "CRITICAL",
+                    "details": "Checking if admission gate forbids auto-canonical promotion.",
+                }
+            )
 
         safety_duration_ms = (time.perf_counter() - t1) * 1000.0
         total_loop_ms = ast_duration_ms + safety_duration_ms
+
+        failed_critical = any(not c["passed"] for c in safety_checks if c["severity_if_failed"] == "CRITICAL")
+        failed_high = any(not c["passed"] for c in safety_checks if c["severity_if_failed"] == "HIGH")
+        failed_medium = any(not c["passed"] for c in safety_checks if c["severity_if_failed"] == "MEDIUM")
 
         test_results = {
             "total_files_tested": len(sources),
@@ -122,6 +169,13 @@ class VerifyPhase(BasePhase):
             "runtime_evidence": runtime_evidence,
         }
 
-        overall_status = VerificationStatus.PASS if ast_pass else VerificationStatus.FAIL
+        # Fail-Closed Enforcement (Ley VIII): Fail immediately on AST error or CRITICAL/HIGH safety check failure
+        if not ast_pass or failed_critical or failed_high:
+            overall_status = VerificationStatus.FAIL
+        elif failed_medium:
+            overall_status = VerificationStatus.WARN
+        else:
+            overall_status = VerificationStatus.PASS
+
         checks.append(f"Completed verification of {len(sources)} file(s) in {round(total_loop_ms, 3)}ms")
         return payload, checks, overall_status

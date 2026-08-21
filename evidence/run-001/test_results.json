@@ -3,26 +3,26 @@
     "errors": [],
     "passed": true
   },
-  "failed_checks": 3,
-  "passed_checks": 1,
+  "failed_checks": 1,
+  "passed_checks": 3,
   "safety_checks": [
     {
-      "check": "envelope_provenance_fields",
-      "details": "Checking if EvidenceEnvelope includes method_version and execution_context_hash.",
-      "passed": false,
-      "severity_if_failed": "MEDIUM"
-    },
-    {
-      "check": "knowledge_admission_gate_invariants",
-      "details": "Checking if admission gate forbids auto-canonical promotion.",
-      "passed": false,
+      "check": "eval_exec_safety",
+      "details": "No dynamic eval/exec detected in target.",
+      "passed": true,
       "severity_if_failed": "CRITICAL"
     },
     {
-      "check": "state_machine_acyclic_transitions",
-      "details": "Checking if valid state lifecycle transitions are defined.",
-      "passed": false,
+      "check": "unconstrained_shell_safety",
+      "details": "No unconstrained shell execution detected.",
+      "passed": true,
       "severity_if_failed": "HIGH"
+    },
+    {
+      "check": "relocatable_paths_check",
+      "details": "Hardcoded developer paths found: /Users/felipe_gonzalez/Developer/examen_grado",
+      "passed": false,
+      "severity_if_failed": "MEDIUM"
     }
   ],
   "total_checks": 4,

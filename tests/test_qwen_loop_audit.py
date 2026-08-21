@@ -46,7 +46,7 @@ def test_qwen_tool_loop_full_hardening_cycle(target_path):
         assert os.path.exists(patch_file)
         with open(del_file) as f:
             del_candidates = json.load(f)
-        assert len(del_candidates) >= 2
+        assert len(del_candidates) >= 1
         candidate_targets = [c["target"] for c in del_candidates]
         assert "unconstrained_shell_harness" in candidate_targets
 

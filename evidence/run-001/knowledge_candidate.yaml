@@ -20,15 +20,15 @@
     suggested_fix: Introduce an explicit set of allowed binaries (e.g. {'git', 'pytest',
       'make'}) before subprocess invocation.
   evidence_references: &id001
-  - evi-95c93e0ea8f0
-  - evi-ac3c99f15c78
-  - evi-fbeaef974e9b
-  - evi-6cf70c84872d
+  - evi-324c01071106
+  - evi-76ae0347d7b4
+  - evi-87056d031557
+  - evi-26a1de4288be
   admission_status: PENDING_REVIEW
   reviewer: null
   reviewed_at: null
   review_notes: null
-  created_at: '1970-01-01T00:00:00+00:00'
+  created_at: '2026-08-21T00:00:00Z'
 - candidate_id: kc-01ab93723a70
   observation: Target read tool accesses filesystem paths directly without verifying
     workspace root containment.
@@ -52,4 +52,4 @@
   reviewer: null
   reviewed_at: null
   review_notes: null
-  created_at: '1970-01-01T00:00:00+00:00'
+  created_at: '2026-08-21T00:00:00Z'

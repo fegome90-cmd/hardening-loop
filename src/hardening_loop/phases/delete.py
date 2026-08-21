@@ -1,5 +1,6 @@
-"""Phase 2: DELETE HARNESS — Identify unnecessary complexity, excessive capabilities, and dead harnesses."""
+"""Phase 2: DELETE HARNESS — Identify unnecessary complexity and dead harnesses with exact attribution."""
 
+import ast
 import difflib
 import os
 import re
@@ -10,7 +11,7 @@ from .base import BasePhase
 
 
 class DeletePhase(BasePhase):
-    """Pinpoints unnecessary harnesses, dead branches, and unsafe capabilities."""
+    """Pinpoints unnecessary harnesses, dead branches, and unsafe capabilities with exact attribution."""
 
     def __init__(self):
         super().__init__(name=PhaseName.DELETE)
@@ -37,75 +38,110 @@ class DeletePhase(BasePhase):
             return {"error": f"Target {target_path} not found"}, ["Target missing"], VerificationStatus.FAIL
 
         sources = self._collect_sources(target_path)
-        combined_code = "\n".join(sources.values())
-        deletion_candidates = []
+        deletion_candidates: list[dict[str, Any]] = []
         checks.append(f"Scanned {len(sources)} source file(s) for deletion candidates and over-privileged harnesses")
 
-        # 1. Check for unconstrained shell execution harness
-        if "subprocess.run" in combined_code and (
-            "/bin/zsh" in combined_code or "/bin/bash" in combined_code or "shell=True" in combined_code
-        ):
-            deletion_candidates.append(
-                {
-                    "candidate_id": "DEL-001",
-                    "target": "unconstrained_shell_harness",
-                    "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
-                    "action": "REPLACE_WITH_STRUCTURED_RUNNER",
-                    "severity": "HIGH",
-                }
-            )
+        for path, code in sources.items():
+            fname = os.path.basename(path)
+            try:
+                tree = ast.parse(code, filename=path)
+            except SyntaxError:
+                continue
 
-        # 2. Check for hardcoded workspace path
-        if re.search(r'cwd\s*=\s*["\']/Users/', combined_code) or "/Users/" in combined_code:
-            deletion_candidates.append(
-                {
-                    "candidate_id": "DEL-002",
-                    "target": "hardcoded_cwd_string",
-                    "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
-                    "action": "DELETE_AND_PARAMETERIZE",
-                    "severity": "MEDIUM",
-                }
-            )
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    # 1. os.system call
+                    if (
+                        isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "system"
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "os"
+                    ):
+                        deletion_candidates.append(
+                            {
+                                "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
+                                "target": "os_system_invocation",
+                                "location": f"{fname}:{node.lineno}",
+                                "rationale": "Direct invocation of os.system executes unconstrained shell commands.",
+                                "action": "REPLACE_WITH_STRUCTURED_SUBPROCESS",
+                                "severity": "HIGH",
+                            }
+                        )
 
-        # 3. Check for unsandboxed file reader harness
-        if "open(" in combined_code and (
-            "validate_rel_path" not in combined_code
-            and "resolve" not in combined_code
-            and "os.walk" not in combined_code
-        ):
-            deletion_candidates.append(
-                {
-                    "candidate_id": "DEL-003",
-                    "target": "unsandboxed_open_call",
-                    "rationale": "Arbitrary file reading allows potential directory traversal beyond repo bounds.",
-                    "action": "REPLACE_WITH_SANDBOXED_RESOLVER",
-                    "severity": "HIGH",
-                }
-            )
+                    # 2. subprocess with shell=True or direct /bin/zsh /bin/bash shell wrapper
+                    elif isinstance(node.func, ast.Attribute) and node.func.attr in (
+                        "run",
+                        "Popen",
+                        "call",
+                        "check_output",
+                    ):
+                        has_shell_true = any(
+                            kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True
+                            for kw in node.keywords
+                        )
+                        is_shell_binary = False
+                        if node.args and isinstance(node.args[0], (ast.List, ast.Tuple)):
+                            for elt in node.args[0].elts:
+                                if isinstance(elt, ast.Constant) and str(elt.value) in (
+                                    "/bin/zsh",
+                                    "/bin/bash",
+                                    "bash",
+                                    "zsh",
+                                ):
+                                    is_shell_binary = True
 
-        # 4. Check for lack of structured evidence envelope logging
-        if "evidence_id" not in combined_code and "EvidenceEnvelope" not in combined_code:
-            deletion_candidates.append(
-                {
-                    "candidate_id": "DEL-004",
-                    "target": "unstructured_stderr_logging",
-                    "rationale": "Direct print statements to sys.stderr lack deterministic evidence logging and hashing.",
-                    "action": "REPLACE_WITH_EVIDENCE_ENVELOPE",
-                    "severity": "MEDIUM",
-                }
-            )
+                        if has_shell_true or is_shell_binary:
+                            deletion_candidates.append(
+                                {
+                                    "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
+                                    "target": "unconstrained_shell_harness",
+                                    "location": f"{fname}:{node.lineno}",
+                                    "rationale": "Direct invocation of shell binary or shell=True allows unconstrained command injection.",
+                                    "action": "REPLACE_WITH_STRUCTURED_RUNNER",
+                                    "severity": "HIGH",
+                                }
+                            )
 
-        # 5. Check for accidental auto-promotion bypass
-        if "auto_promote" in combined_code or "skip_review" in combined_code:
-            deletion_candidates.append(
-                {
-                    "candidate_id": "DEL-005",
-                    "target": "auto_promotion_bypass",
-                    "rationale": "Knowledge Admission Gate prohibits auto-promotion to canonical without reviewer identity.",
-                    "action": "DELETE_BYPASS_METHOD",
-                    "severity": "CRITICAL",
-                }
-            )
+                    # 3. Dynamic eval / exec
+                    elif isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec"):
+                        deletion_candidates.append(
+                            {
+                                "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
+                                "target": f"dynamic_{node.func.id}_call",
+                                "location": f"{fname}:{node.lineno}",
+                                "rationale": f"Dynamic execution via {node.func.id}() bypasses static analysis and introduces vulnerabilities.",
+                                "action": "DELETE_OR_REFACTOR_STATICALLY",
+                                "severity": "CRITICAL",
+                            }
+                        )
+
+                # 4. Auto-promotion bypass functions
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if node.name in ("auto_promote", "skip_review", "bypass_gate"):
+                        deletion_candidates.append(
+                            {
+                                "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
+                                "target": f"bypass_method_{node.name}",
+                                "location": f"{fname}:{node.lineno}",
+                                "rationale": "Knowledge Admission Gate prohibits auto-promotion to canonical without reviewer identity.",
+                                "action": "DELETE_BYPASS_METHOD",
+                                "severity": "CRITICAL",
+                            }
+                        )
+
+            # 5. Check for hardcoded workspace/developer paths
+            for lineno, line in enumerate(code.splitlines(), start=1):
+                if re.search(r'["\']/(?:Users|home)/', line):
+                    deletion_candidates.append(
+                        {
+                            "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
+                            "target": "hardcoded_path_string",
+                            "location": f"{fname}:{lineno}",
+                            "rationale": "Hardcoded developer absolute path makes script brittle and non-relocatable.",
+                            "action": "DELETE_AND_PARAMETERIZE",
+                            "severity": "MEDIUM",
+                        }
+                    )
 
         # Generate sample diff for target
         target_file = target_path if os.path.isfile(target_path) else next(iter(sources.keys()), target_path)
@@ -131,7 +167,7 @@ class DeletePhase(BasePhase):
             },
         }
 
-        checks.append(f"Identified {len(deletion_candidates)} deletion candidates")
+        checks.append(f"Identified {len(deletion_candidates)} deletion candidates with exact location attribution")
         checks.append("Generated deterministic rollback reference")
         status = VerificationStatus.PASS
         return payload, checks, status

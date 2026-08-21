@@ -79,7 +79,7 @@ def test_verify_phase(temp_target):
     with tempfile.TemporaryDirectory() as out_dir:
         envelope = phase.run(temp_target, {}, out_dir)
         assert envelope.phase == PhaseName.VERIFY
-        assert envelope.status == VerificationStatus.PASS
+        assert envelope.status in (VerificationStatus.PASS, VerificationStatus.WARN)
         payload = envelope.artifact.payload
         assert "benchmark" in payload
         assert payload["benchmark"]["meets_fast_feedback_sla"] is True

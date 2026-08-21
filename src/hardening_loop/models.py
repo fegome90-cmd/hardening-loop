@@ -200,7 +200,7 @@ class KnowledgeCandidate:
     reviewer: str | None = None
     reviewed_at: str | None = None
     review_notes: str | None = None
-    created_at: str = "1970-01-01T00:00:00+00:00"
+    created_at: str = field(default_factory=utc_now_iso)
 
     def to_dict(self) -> dict[str, Any]:
         return {

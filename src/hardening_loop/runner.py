@@ -95,8 +95,17 @@ class HardeningRunner:
                     self.work_unit, HardeningState.PATCH_PROPOSED, reason="Audit and simplification complete"
                 )
         elif phase_name == PhaseName.VERIFY:
-            if envelope.status == VerificationStatus.PASS and self.work_unit.state == HardeningState.PATCH_PROPOSED:
-                StateMachine.transition(self.work_unit, HardeningState.VERIFIED, reason="Verification tests passed")
+            if (
+                envelope.status in (VerificationStatus.PASS, VerificationStatus.WARN)
+                and self.work_unit.state == HardeningState.PATCH_PROPOSED
+            ):
+                StateMachine.transition(
+                    self.work_unit,
+                    HardeningState.VERIFIED,
+                    reason="Verification passed"
+                    if envelope.status == VerificationStatus.PASS
+                    else "Verification passed with warnings",
+                )
         elif phase_name == PhaseName.CODIFY:
             if self.work_unit.state == HardeningState.VERIFIED:
                 StateMachine.transition(

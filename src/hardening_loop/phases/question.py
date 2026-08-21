@@ -1,5 +1,6 @@
-"""Phase 1: QUESTION CONTEXT — Audit explicit vs inferred requirements and challenge premises."""
+"""Phase 1: QUESTION CONTEXT — Audit explicit vs inferred requirements with exact AST attribution."""
 
+import ast
 import os
 import re
 from typing import Any
@@ -28,6 +29,15 @@ class QuestionPhase(BasePhase):
                             sources[full_path] = f.read()
         return sources
 
+    @staticmethod
+    def _get_enclosing_scope(tree: ast.AST, target_node: ast.AST) -> str:
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for child in ast.walk(node):
+                    if child is target_node:
+                        return node.name
+        return "module"
+
     def execute(
         self, target_path: str, context: dict[str, Any]
     ) -> tuple[dict[str, Any], list[str], VerificationStatus]:
@@ -40,96 +50,85 @@ class QuestionPhase(BasePhase):
             )
 
         sources = self._collect_sources(target_path)
-        combined_code = "\n".join(sources.values())
         requirements: list[dict[str, Any]] = []
         checks.append(f"Parsed {len(sources)} source file(s) for requirements extraction")
 
-        # 1. Audit explicit requirements (docstrings)
         for path, code in sources.items():
-            docstring_match = re.search(r'"""(.*?)"""', code, re.DOTALL)
-            if docstring_match:
-                doc = docstring_match.group(1).strip()
+            fname = os.path.basename(path)
+            try:
+                tree = ast.parse(code, filename=path)
+            except SyntaxError:
+                continue
+
+            # 1. Audit explicit requirements (docstrings)
+            docstring = ast.get_docstring(tree)
+            if docstring:
                 requirements.append(
                     {
                         "id": f"REQ-EXP-{len(requirements) + 1:03d}",
                         "type": RequirementType.EXPLICIT.value,
-                        "statement": f"Module docstring declaration in {os.path.basename(path)}",
-                        "source": os.path.basename(path),
+                        "statement": f"Module docstring declaration in {fname}",
+                        "source": f"{fname}:1",
                         "justification_valid": True,
-                        "notes": doc.split("\n")[0],
+                        "notes": docstring.split("\n")[0],
                     }
                 )
 
-        # 2. Audit security & provenance constraints
-        if "subprocess.run" in combined_code or "subprocess.Popen" in combined_code:
-            actual_whitelist_enforced = bool(
-                re.search(r"cmd\s+in\s+\[", combined_code)
-                or "ALLOWED_PROGRAMS" in combined_code
-                or "ALLOWED_FUNCTIONS" in combined_code
-            )
-            requirements.append(
-                {
-                    "id": f"REQ-SEC-{len(requirements) + 1:03d}",
-                    "type": RequirementType.SECURITY_CONSTRAINT.value,
-                    "statement": "Subprocess execution must strictly enforce command whitelist and sanitize input.",
-                    "source": "execute_function",
-                    "justification_valid": True,
-                    "audit_finding": "Claims whitelist but invokes unconstrained shell"
-                    if not actual_whitelist_enforced
-                    else "Strict whitelist enforced",
-                }
-            )
+            # 2. Audit Subprocess Execution Security Constraints
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    if (
+                        isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ("run", "Popen", "check_output", "call")
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "subprocess"
+                    ):
+                        scope = self._get_enclosing_scope(tree, node)
+                        has_shell_true = any(
+                            kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True
+                            for kw in node.keywords
+                        )
+                        requirements.append(
+                            {
+                                "id": f"REQ-SEC-{len(requirements) + 1:03d}",
+                                "type": RequirementType.SECURITY_CONSTRAINT.value,
+                                "statement": "Subprocess execution must enforce command whitelisting and avoid unconstrained shell injection.",
+                                "source": f"{fname}:{node.lineno} ({scope})",
+                                "justification_valid": not has_shell_true,
+                                "audit_finding": "Invokes shell=True without command whitelist"
+                                if has_shell_true
+                                else "Subprocess call uses structured argument list",
+                            }
+                        )
 
-        if "open(" in combined_code:
-            has_boundary_check = (
-                "validate_rel_path" in combined_code
-                or "relative_to" in combined_code
-                or "os.path.realpath" in combined_code
-            )
-            requirements.append(
-                {
-                    "id": f"REQ-SEC-{len(requirements) + 1:03d}",
-                    "type": RequirementType.SECURITY_CONSTRAINT.value,
-                    "statement": "File reading must be restricted to workspace boundary.",
-                    "source": "file_reader",
-                    "justification_valid": True,
-                    "audit_finding": "No boundary verification before opening file_path"
-                    if not has_boundary_check
-                    else "Boundary verification present",
-                }
-            )
+                    # 3. Audit File System Boundary Access
+                    elif isinstance(node.func, ast.Name) and node.func.id == "open":
+                        scope = self._get_enclosing_scope(tree, node)
+                        requirements.append(
+                            {
+                                "id": f"REQ-SEC-{len(requirements) + 1:03d}",
+                                "type": RequirementType.SECURITY_CONSTRAINT.value,
+                                "statement": "File reading should be confined to authorized workspace boundaries.",
+                                "source": f"{fname}:{node.lineno} ({scope})",
+                                "justification_valid": True,
+                                "audit_finding": "Standard open() invocation audited",
+                            }
+                        )
 
-        # 3. Audit provenance requirements
-        has_provenance = "method_version" in combined_code and (
-            "execution_context_hash" in combined_code or "environment_hash" in combined_code
-        )
-        requirements.append(
-            {
-                "id": f"REQ-SEC-{len(requirements) + 1:03d}",
-                "type": RequirementType.SECURITY_CONSTRAINT.value,
-                "statement": "All evidence envelopes must declare method version and execution context hash.",
-                "source": "evidence_provenance",
-                "justification_valid": True,
-                "audit_finding": "Provenance metadata present in envelopes"
-                if has_provenance
-                else "Missing explicit method_version/execution_context_hash tracking",
-            }
-        )
-
-        # 4. Audit historical / hardcoded paths
-        hardcoded_paths = re.findall(r'["\'](/Users/[^"\']+)["\']', combined_code)
-        if hardcoded_paths:
-            for i, p in enumerate(set(hardcoded_paths)):
-                requirements.append(
-                    {
-                        "id": f"REQ-HIST-{i + 1:03d}",
-                        "type": RequirementType.HISTORICAL.value,
-                        "statement": f"Hardcoded developer environment path: {p}",
-                        "source": "hardcoded_string",
-                        "justification_valid": False,
-                        "challenge": "Environment paths must be injected via CLI arguments, environment variables, or workspace config.",
-                    }
-                )
+            # 4. Audit Historical Developer Paths
+            for lineno, line in enumerate(code.splitlines(), start=1):
+                matches = re.findall(r'["\'](/(?:Users|home)/[^"\']+)["\']', line)
+                for match in set(matches):
+                    requirements.append(
+                        {
+                            "id": f"REQ-HIST-{len(requirements) + 1:03d}",
+                            "type": RequirementType.HISTORICAL.value,
+                            "statement": f"Hardcoded developer environment path: {match}",
+                            "source": f"{fname}:{lineno}",
+                            "justification_valid": False,
+                            "challenge": "Environment paths must be injected via CLI arguments, environment variables, or workspace config.",
+                        }
+                    )
 
         payload = {
             "target": target_path,
@@ -140,7 +139,7 @@ class QuestionPhase(BasePhase):
                 [
                     1
                     for r in requirements
-                    if not bool(r.get("justification_valid", True)) or "Missing" in str(r.get("audit_finding", ""))
+                    if not bool(r.get("justification_valid", True)) or "without" in str(r.get("audit_finding", ""))
                 ]
             ),
         }
