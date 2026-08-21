@@ -27,7 +27,7 @@
       "properties": {
         "category": {
           "type": "string",
-          "enum": ["SECURITY", "CONTRACT_BREACH", "UNCLEAR_INTERFACE", "RESOURCE_LEAK", "DEAD_HARNESS"]
+          "enum": ["SECURITY", "CONTRACT_BREACH", "UNCLEAR_INTERFACE", "RESOURCE_LEAK", "DEAD_HARNESS", "PROVENANCE_GAP"]
         },
         "severity": {
           "type": "string",
@@ -51,7 +51,9 @@
           "enum": ["LINTER", "TEST_FIXTURE", "CONTRACT_VALIDATOR", "SCHEMA_GUARD", "PRE_COMMIT"]
         },
         "rationale": { "type": "string" },
-        "suggested_fix": { "type": "string" }
+        "suggested_fix": {
+          "type": ["string", "null"]
+        }
       }
     },
     "evidence_references": {

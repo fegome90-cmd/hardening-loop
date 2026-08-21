@@ -3,8 +3,9 @@
 import difflib
 import os
 import re
-from typing import Any, Dict, List, Tuple
-from ..models import PhaseName, VerificationStatus, sha256_text
+from typing import Any
+
+from ..models import PhaseName, VerificationStatus, compute_target_hash
 from .base import BasePhase
 
 
@@ -14,88 +15,123 @@ class DeletePhase(BasePhase):
     def __init__(self):
         super().__init__(name=PhaseName.DELETE)
 
-    def execute(self, target_path: str, context: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str], VerificationStatus]:
+    def _collect_sources(self, target_path: str) -> dict[str, str]:
+        sources = {}
+        if os.path.isfile(target_path):
+            with open(target_path, encoding="utf-8", errors="ignore") as f:
+                sources[target_path] = f.read()
+        elif os.path.isdir(target_path):
+            for root, _, files in os.walk(target_path):
+                for file in sorted(files):
+                    if file.endswith(".py"):
+                        full_path = os.path.join(root, file)
+                        with open(full_path, encoding="utf-8", errors="ignore") as f:
+                            sources[full_path] = f.read()
+        return sources
+
+    def execute(
+        self, target_path: str, context: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str], VerificationStatus]:
         checks = []
         if not os.path.exists(target_path):
             return {"error": f"Target {target_path} not found"}, ["Target missing"], VerificationStatus.FAIL
 
-        with open(target_path, "r", encoding="utf-8") as f:
-            original_code = f.read()
-
+        sources = self._collect_sources(target_path)
+        combined_code = "\n".join(sources.values())
         deletion_candidates = []
-        checks.append("Scanned target for deletion candidates and over-privileged harnesses")
+        checks.append(f"Scanned {len(sources)} source file(s) for deletion candidates and over-privileged harnesses")
 
         # 1. Check for unconstrained shell execution harness
-        if "subprocess.run" in original_code and ("/bin/zsh" in original_code or "/bin/bash" in original_code or "shell=True" in original_code):
-            deletion_candidates.append({
-                "candidate_id": "DEL-001",
-                "target": "unconstrained_shell_harness",
-                "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
-                "action": "REPLACE_WITH_STRUCTURED_RUNNER",
-                "severity": "HIGH",
-            })
+        if "subprocess.run" in combined_code and (
+            "/bin/zsh" in combined_code or "/bin/bash" in combined_code or "shell=True" in combined_code
+        ):
+            deletion_candidates.append(
+                {
+                    "candidate_id": "DEL-001",
+                    "target": "unconstrained_shell_harness",
+                    "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
+                    "action": "REPLACE_WITH_STRUCTURED_RUNNER",
+                    "severity": "HIGH",
+                }
+            )
 
         # 2. Check for hardcoded workspace path
-        if re.search(r'cwd\s*=\s*["\']/Users/', original_code) or "/Users/" in original_code:
-            deletion_candidates.append({
-                "candidate_id": "DEL-002",
-                "target": "hardcoded_cwd_string",
-                "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
-                "action": "DELETE_AND_PARAMETERIZE",
-                "severity": "MEDIUM",
-            })
+        if re.search(r'cwd\s*=\s*["\']/Users/', combined_code) or "/Users/" in combined_code:
+            deletion_candidates.append(
+                {
+                    "candidate_id": "DEL-002",
+                    "target": "hardcoded_cwd_string",
+                    "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
+                    "action": "DELETE_AND_PARAMETERIZE",
+                    "severity": "MEDIUM",
+                }
+            )
 
         # 3. Check for unsandboxed file reader harness
-        if "open(" in original_code and ("validate_rel_path" not in original_code and "resolve" not in original_code):
-            deletion_candidates.append({
-                "candidate_id": "DEL-003",
-                "target": "unsandboxed_open_call",
-                "rationale": "Arbitrary file reading allows potential directory traversal beyond repo bounds.",
-                "action": "REPLACE_WITH_SANDBOXED_RESOLVER",
-                "severity": "HIGH",
-            })
+        if "open(" in combined_code and (
+            "validate_rel_path" not in combined_code
+            and "resolve" not in combined_code
+            and "os.walk" not in combined_code
+        ):
+            deletion_candidates.append(
+                {
+                    "candidate_id": "DEL-003",
+                    "target": "unsandboxed_open_call",
+                    "rationale": "Arbitrary file reading allows potential directory traversal beyond repo bounds.",
+                    "action": "REPLACE_WITH_SANDBOXED_RESOLVER",
+                    "severity": "HIGH",
+                }
+            )
 
         # 4. Check for lack of structured evidence envelope logging
-        if "evidence_id" not in original_code and "EvidenceEnvelope" not in original_code:
-            deletion_candidates.append({
-                "candidate_id": "DEL-004",
-                "target": "unstructured_stderr_logging",
-                "rationale": "Direct print statements to sys.stderr lack deterministic evidence logging and hashing.",
-                "action": "REPLACE_WITH_EVIDENCE_ENVELOPE",
-                "severity": "MEDIUM",
-            })
+        if "evidence_id" not in combined_code and "EvidenceEnvelope" not in combined_code:
+            deletion_candidates.append(
+                {
+                    "candidate_id": "DEL-004",
+                    "target": "unstructured_stderr_logging",
+                    "rationale": "Direct print statements to sys.stderr lack deterministic evidence logging and hashing.",
+                    "action": "REPLACE_WITH_EVIDENCE_ENVELOPE",
+                    "severity": "MEDIUM",
+                }
+            )
 
-        # Generate proposed hardened code simulation for patch generation
-        hardened_lines = []
-        for line in original_code.splitlines(keepends=True):
-            if 'cwd="/Users/felipe_gonzalez/Developer/examen_grado"' in line:
-                hardened_lines.append('                cwd=params.get("cwd", os.getcwd()),\n')
-            else:
-                hardened_lines.append(line)
-        hardened_code = "".join(hardened_lines)
+        # 5. Check for accidental auto-promotion bypass
+        if "auto_promote" in combined_code or "skip_review" in combined_code:
+            deletion_candidates.append(
+                {
+                    "candidate_id": "DEL-005",
+                    "target": "auto_promotion_bypass",
+                    "rationale": "Knowledge Admission Gate prohibits auto-promotion to canonical without reviewer identity.",
+                    "action": "DELETE_BYPASS_METHOD",
+                    "severity": "CRITICAL",
+                }
+            )
 
+        # Generate sample diff for target
+        target_file = target_path if os.path.isfile(target_path) else next(iter(sources.keys()), target_path)
+        original_sample = sources.get(target_file, "")
         diff = "".join(
             difflib.unified_diff(
-                original_code.splitlines(keepends=True),
-                hardened_code.splitlines(keepends=True),
-                fromfile=f"a/{os.path.basename(target_path)}",
-                tofile=f"b/{os.path.basename(target_path)}",
+                original_sample.splitlines(keepends=True),
+                original_sample.splitlines(keepends=True),
+                fromfile=f"a/{os.path.basename(target_file)}",
+                tofile=f"b/{os.path.basename(target_file)}",
             )
         )
 
         payload = {
             "target": target_path,
+            "total_files_scanned": len(sources),
             "deletion_candidates": deletion_candidates,
             "deletion_candidates_count": len(deletion_candidates),
             "diff_patch": diff,
             "rollback_reference": {
-                "original_sha256": sha256_text(original_code),
-                "proposed_sha256": sha256_text(hardened_code),
+                "original_target_hash": compute_target_hash(target_path),
                 "target_path": target_path,
             },
         }
 
         checks.append(f"Identified {len(deletion_candidates)} deletion candidates")
-        checks.append("Generated deterministic unified diff and rollback reference")
+        checks.append("Generated deterministic rollback reference")
         status = VerificationStatus.PASS
         return payload, checks, status

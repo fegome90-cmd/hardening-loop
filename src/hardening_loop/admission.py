@@ -1,7 +1,7 @@
 """Knowledge Admission Gate — Governs transition from empirical findings to accepted rules."""
 
-from typing import List, Optional
 import yaml
+
 from .models import (
     AdmissionStatus,
     Finding,
@@ -15,6 +15,7 @@ from .models import (
 
 class KnowledgeAdmissionError(RuntimeError):
     """Raised when an illegal knowledge promotion is attempted."""
+
     pass
 
 
@@ -28,13 +29,14 @@ class KnowledgeAdmissionGate:
         category: FindingCategory,
         severity: FindingSeverity,
         finding_description: str,
-        target_lines: List[int],
+        target_lines: list[int],
         rule_id: str,
         rule_title: str,
         enforcement_mechanism: str,
         rationale: str,
-        evidence_references: List[str],
-        suggested_fix: Optional[str] = None,
+        evidence_references: list[str],
+        suggested_fix: str | None = None,
+        created_at: str | None = None,
     ) -> KnowledgeCandidate:
         finding = Finding(
             category=category,
@@ -49,14 +51,17 @@ class KnowledgeAdmissionGate:
             rationale=rationale,
             suggested_fix=suggested_fix,
         )
-        return KnowledgeCandidate(
+        candidate = KnowledgeCandidate(
             candidate_id=candidate_id,
             observation=observation,
             finding=finding,
             rule_proposal=proposal,
             evidence_references=evidence_references,
             admission_status=AdmissionStatus.PENDING_REVIEW,
+            created_at=created_at or "1970-01-01T00:00:00+00:00",
         )
+        candidate.validate_schema()
+        return candidate
 
     @staticmethod
     def review_candidate(
@@ -76,10 +81,12 @@ class KnowledgeAdmissionGate:
         candidate.reviewer = reviewer.strip()
         candidate.reviewed_at = utc_now_iso()
         candidate.review_notes = notes
+        candidate.validate_schema()
         return candidate
 
     @staticmethod
     def export_candidate_yaml(candidate: KnowledgeCandidate) -> str:
+        candidate.validate_schema()
         return yaml.dump(candidate.to_dict(), sort_keys=False, allow_unicode=True)
 
     @staticmethod
@@ -100,7 +107,7 @@ class KnowledgeAdmissionGate:
             rationale=r_raw["rationale"],
             suggested_fix=r_raw.get("suggested_fix"),
         )
-        return KnowledgeCandidate(
+        candidate = KnowledgeCandidate(
             candidate_id=raw["candidate_id"],
             observation=raw["observation"],
             finding=finding,
@@ -110,5 +117,7 @@ class KnowledgeAdmissionGate:
             reviewer=raw.get("reviewer"),
             reviewed_at=raw.get("reviewed_at"),
             review_notes=raw.get("review_notes"),
-            created_at=raw.get("created_at", utc_now_iso()),
+            created_at=raw.get("created_at", "1970-01-01T00:00:00+00:00"),
         )
+        candidate.validate_schema()
+        return candidate

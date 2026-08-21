@@ -1,6 +1,5 @@
 """Tests for Evidence Envelope structure, determinism, and SHA-256 computation."""
 
-import json
 from hardening_loop.models import (
     EvidenceArtifact,
     EvidenceEnvelope,

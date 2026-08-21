@@ -1,6 +1,7 @@
 """Tests for Knowledge Admission Gate (Aduana de Conocimiento)."""
 
 import pytest
+
 from hardening_loop.admission import KnowledgeAdmissionError, KnowledgeAdmissionGate
 from hardening_loop.models import (
     AdmissionStatus,
@@ -11,7 +12,7 @@ from hardening_loop.models import (
 
 def test_candidate_creation_defaults_to_pending_review():
     c = KnowledgeAdmissionGate.create_candidate(
-        candidate_id="kc-test-01",
+        candidate_id="kc-12345678abcd",
         observation="Found unvalidated tool call parameter in handler.",
         category=FindingCategory.CONTRACT_BREACH,
         severity=FindingSeverity.HIGH,
@@ -21,7 +22,7 @@ def test_candidate_creation_defaults_to_pending_review():
         rule_title="Validate Tool Call Parameters",
         enforcement_mechanism="SCHEMA_GUARD",
         rationale="Prevents unhandled runtime KeyError exceptions.",
-        evidence_references=["evi-12345678"],
+        evidence_references=["evi-12345678abcd"],
     )
     assert c.admission_status == AdmissionStatus.PENDING_REVIEW
     assert c.reviewer is None
@@ -30,7 +31,7 @@ def test_candidate_creation_defaults_to_pending_review():
 
 def test_admission_review_acceptance():
     c = KnowledgeAdmissionGate.create_candidate(
-        candidate_id="kc-test-02",
+        candidate_id="kc-87654321dcba",
         observation="Command injection vulnerability detected.",
         category=FindingCategory.SECURITY,
         severity=FindingSeverity.CRITICAL,
@@ -40,7 +41,7 @@ def test_admission_review_acceptance():
         rule_title="Use Parameterized Subprocess",
         enforcement_mechanism="CONTRACT_VALIDATOR",
         rationale="Prevents command injection.",
-        evidence_references=["evi-87654321"],
+        evidence_references=["evi-87654321dcba"],
     )
 
     reviewed = KnowledgeAdmissionGate.review_candidate(
@@ -56,7 +57,7 @@ def test_admission_review_acceptance():
 
 def test_admission_requires_reviewer():
     c = KnowledgeAdmissionGate.create_candidate(
-        candidate_id="kc-test-03",
+        candidate_id="kc-000011112222",
         observation="Missing docstring.",
         category=FindingCategory.UNCLEAR_INTERFACE,
         severity=FindingSeverity.LOW,
@@ -79,7 +80,7 @@ def test_admission_requires_reviewer():
 
 def test_yaml_export_and_load_roundtrip():
     c = KnowledgeAdmissionGate.create_candidate(
-        candidate_id="kc-test-04",
+        candidate_id="kc-333344445555",
         observation="Observation text",
         category=FindingCategory.DEAD_HARNESS,
         severity=FindingSeverity.MEDIUM,
@@ -89,7 +90,7 @@ def test_yaml_export_and_load_roundtrip():
         rule_title="Clean Harness",
         enforcement_mechanism="LINTER",
         rationale="Rationale text",
-        evidence_references=["evi-00001111"],
+        evidence_references=["evi-000011112222"],
     )
     yaml_str = KnowledgeAdmissionGate.export_candidate_yaml(c)
     loaded = KnowledgeAdmissionGate.load_candidate_yaml(yaml_str)

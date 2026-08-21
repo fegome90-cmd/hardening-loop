@@ -1,0 +1,32 @@
+# Python Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Testing & Quality Tooling Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build & Distribution Artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# System & Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local Agent & Runtime State
+.atl/
+_ctx/

@@ -1,7 +1,7 @@
 {
-  "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
-  "file_size_bytes": 4381,
-  "lines_of_code": 118,
+  "deterministic_execution": true,
   "environment": "local_ci",
-  "deterministic_execution": true
+  "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
+  "total_files": 1,
+  "total_lines_of_code": 118
 }

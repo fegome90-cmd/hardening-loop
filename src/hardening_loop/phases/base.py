@@ -3,15 +3,17 @@
 import abc
 import os
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any
+
 from ..models import (
     EvidenceArtifact,
     EvidenceEnvelope,
     EvidenceVerification,
     PhaseName,
     VerificationStatus,
+    compute_environment_hash,
+    compute_target_hash,
     sha256_dict,
-    sha256_text,
     utc_now_iso,
 )
 
@@ -19,24 +21,24 @@ from ..models import (
 class BasePhase(abc.ABC):
     """Abstract base class for hardening loop phases."""
 
-    def __init__(self, name: PhaseName, version: str = "0.1.0"):
+    def __init__(self, name: PhaseName, version: str = "0.1.0", method_version: str = "v0.3"):
         self.name = name
         self.version = version
+        self.method_version = method_version
 
-    def compute_input_hash(self, target_path: str, context: Dict[str, Any]) -> str:
-        content = ""
-        if os.path.exists(target_path):
-            with open(target_path, "r", encoding="utf-8") as f:
-                content = f.read()
+    def compute_input_hash(self, target_path: str, context: dict[str, Any]) -> str:
+        target_content_hash = compute_target_hash(target_path)
         context_payload = {
             "target_path": target_path,
-            "target_content_hash": sha256_text(content),
+            "target_content_hash": target_content_hash,
             "context": context,
         }
         return sha256_dict(context_payload)
 
     @abc.abstractmethod
-    def execute(self, target_path: str, context: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str], VerificationStatus]:
+    def execute(
+        self, target_path: str, context: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str], VerificationStatus]:
         """Executes phase logic.
 
         Returns:
@@ -44,10 +46,10 @@ class BasePhase(abc.ABC):
         """
         pass
 
-    def run(self, target_path: str, context: Dict[str, Any], output_dir: str) -> EvidenceEnvelope:
+    def run(self, target_path: str, context: dict[str, Any], output_dir: str) -> EvidenceEnvelope:
         t0 = time.perf_counter()
         input_hash = self.compute_input_hash(target_path, context)
-        
+
         payload, checks, status = self.execute(target_path, context)
         duration_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -75,5 +77,9 @@ class BasePhase(abc.ABC):
                 error=None if status == VerificationStatus.PASS else "One or more checks failed or raised warnings.",
             ),
             status=status,
+            method_version=self.method_version,
+            environment_hash=compute_environment_hash(),
         )
+        # Strict Fail-Closed Schema Validation (Ley VI & Ley VIII)
+        envelope.validate_schema()
         return envelope

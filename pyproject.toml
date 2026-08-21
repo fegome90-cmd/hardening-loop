@@ -11,6 +11,16 @@ readme = "docs/spec_v0.1.md"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
+    "jsonschema>=4.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "types-pyyaml>=6.0.0",
+    "types-jsonschema>=4.20.0",
 ]
 
 [project.scripts]
@@ -20,3 +30,34 @@ hardening-loop = "hardening_loop.cli:main"
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501", # line too long
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+show_error_codes = true
+pretty = true
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = ["src"]

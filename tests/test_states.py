@@ -1,6 +1,7 @@
 """Tests for HardeningState lifecycle and StateMachine transition rules."""
 
 import pytest
+
 from hardening_loop.models import HardeningState, WorkUnit
 from hardening_loop.states import InvalidStateTransitionError, StateMachine
 

@@ -1,0 +1,7 @@
+{
+  "deterministic_execution": true,
+  "environment": "local_ci",
+  "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+  "total_files": 14,
+  "total_lines_of_code": 1567
+}

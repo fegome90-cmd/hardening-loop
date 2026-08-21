@@ -1,4 +1,4 @@
-- candidate_id: kc-sec-whitelist-01
+- candidate_id: kc-bd0b7d675cba
   observation: Target tool wrapper invokes bash via generic shell without enforcing
     an explicit executable whitelist.
   finding:
@@ -19,17 +19,17 @@
       be validated against an approved executable set.
     suggested_fix: Introduce an explicit set of allowed binaries (e.g. {'git', 'pytest',
       'make'}) before subprocess invocation.
-  evidence_references:
-  - evi-30d6166e3ed1
-  - evi-88bc29eb6433
-  - evi-30c33d138673
-  - evi-fad79a536ef1
-  admission_status: ACCEPTED
-  reviewer: felipe-senior-architect
-  reviewed_at: '2026-08-21T03:41:23.853728+00:00'
-  review_notes: Audited and verified against baseline v0.3
-  created_at: '2026-08-21T03:36:24.473932+00:00'
-- candidate_id: kc-sec-sandbox-02
+  evidence_references: &id001
+  - evi-f419be2d36a1
+  - evi-ac3c99f15c78
+  - evi-fbeaef974e9b
+  - evi-b3e5f70966b6
+  admission_status: PENDING_REVIEW
+  reviewer: null
+  reviewed_at: null
+  review_notes: null
+  created_at: '1970-01-01T00:00:00+00:00'
+- candidate_id: kc-01ab93723a70
   observation: Target read tool accesses filesystem paths directly without verifying
     workspace root containment.
   finding:
@@ -47,39 +47,9 @@
     rationale: Prevent leakage of credentials and sensitive dotfiles outside project
       scope.
     suggested_fix: Resolve paths with os.path.realpath and assert startswith(workspace_root).
-  evidence_references:
-  - evi-30d6166e3ed1
-  - evi-88bc29eb6433
-  - evi-30c33d138673
-  - evi-fad79a536ef1
-  admission_status: ACCEPTED
-  reviewer: felipe-senior-architect
-  reviewed_at: '2026-08-21T03:41:23.854767+00:00'
-  review_notes: Audited and verified against baseline v0.3
-  created_at: '2026-08-21T03:36:24.473937+00:00'
-- candidate_id: kc-contract-cwd-03
-  observation: Target hardcodes developer absolute directory in execution harness.
-  finding:
-    category: UNCLEAR_INTERFACE
-    severity: MEDIUM
-    description: Hardcoded environment cwd makes code non-portable across machines
-      and test environments.
-    target_lines:
-    - 61
-  rule_proposal:
-    rule_id: RULE-ARCH-001
-    title: No Hardcoded Absolute Paths in Tool Runners
-    enforcement_mechanism: LINTER
-    rationale: Environment paths must be injected via CLI arguments or environment
-      variables.
-    suggested_fix: Use params.get('cwd', os.getcwd()) and expose --workspace CLI flag.
-  evidence_references:
-  - evi-30d6166e3ed1
-  - evi-88bc29eb6433
-  - evi-30c33d138673
-  - evi-fad79a536ef1
-  admission_status: ACCEPTED
-  reviewer: felipe-senior-architect
-  reviewed_at: '2026-08-21T03:41:23.855647+00:00'
-  review_notes: Audited and verified against baseline v0.3
-  created_at: '2026-08-21T03:36:24.473940+00:00'
+  evidence_references: *id001
+  admission_status: PENDING_REVIEW
+  reviewer: null
+  reviewed_at: null
+  review_notes: null
+  created_at: '1970-01-01T00:00:00+00:00'

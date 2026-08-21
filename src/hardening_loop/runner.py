@@ -2,8 +2,8 @@
 
 import json
 import os
-import shutil
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import yaml
 
 from .models import (
@@ -12,7 +12,7 @@ from .models import (
     PhaseName,
     VerificationStatus,
     WorkUnit,
-    sha256_text,
+    compute_target_hash,
     utc_now_iso,
 )
 from .phases import (
@@ -29,7 +29,7 @@ from .states import StateMachine
 class HardeningRunner:
     """Coordinates execution of the Algorithmic Code Hardening Loop."""
 
-    PHASE_MAP: Dict[PhaseName, BasePhase] = {
+    PHASE_MAP: dict[PhaseName, BasePhase] = {
         PhaseName.QUESTION: QuestionPhase(),
         PhaseName.DELETE: DeletePhase(),
         PhaseName.SIMPLIFY: SimplifyPhase(),
@@ -41,22 +41,20 @@ class HardeningRunner:
         self.target_path = os.path.abspath(target_path)
         self.output_dir = os.path.abspath(output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
-        
-        target_hash = ""
-        if os.path.exists(self.target_path):
-            with open(self.target_path, "r", encoding="utf-8") as f:
-                target_hash = sha256_text(f.read())
+
+        target_hash = compute_target_hash(self.target_path)
 
         self.work_unit = WorkUnit(
             work_unit_id=f"wu-{target_hash[:12] if target_hash else '000000000000'}",
             target_path=self.target_path,
             target_hash=target_hash,
             state=HardeningState.DRAFT,
-            metadata={"runner_version": "0.1.0"},
+            metadata={"runner_version": "0.1.0-beta", "method_version": "v0.3"},
         )
-        self.envelopes: List[EvidenceEnvelope] = []
+        self.work_unit.validate_schema()
+        self.envelopes: list[EvidenceEnvelope] = []
 
-    def run_phase(self, phase_name: PhaseName, context: Optional[Dict[str, Any]] = None) -> EvidenceEnvelope:
+    def run_phase(self, phase_name: PhaseName, context: dict[str, Any] | None = None) -> EvidenceEnvelope:
         phase = self.PHASE_MAP.get(phase_name)
         if not phase:
             raise ValueError(f"Unknown phase '{phase_name}'")
@@ -76,13 +74,17 @@ class HardeningRunner:
         # Handle state progression
         if phase_name == PhaseName.SIMPLIFY:
             if self.work_unit.state == HardeningState.AUDITING:
-                StateMachine.transition(self.work_unit, HardeningState.PATCH_PROPOSED, reason="Audit and simplification complete")
+                StateMachine.transition(
+                    self.work_unit, HardeningState.PATCH_PROPOSED, reason="Audit and simplification complete"
+                )
         elif phase_name == PhaseName.VERIFY:
             if envelope.status == VerificationStatus.PASS and self.work_unit.state == HardeningState.PATCH_PROPOSED:
                 StateMachine.transition(self.work_unit, HardeningState.VERIFIED, reason="Verification tests passed")
         elif phase_name == PhaseName.CODIFY:
             if self.work_unit.state == HardeningState.VERIFIED:
-                StateMachine.transition(self.work_unit, HardeningState.KNOWLEDGE_CANDIDATE, reason="Knowledge candidates formulated")
+                StateMachine.transition(
+                    self.work_unit, HardeningState.KNOWLEDGE_CANDIDATE, reason="Knowledge candidates formulated"
+                )
 
         return envelope
 
@@ -90,32 +92,32 @@ class HardeningRunner:
         payload = envelope.artifact.payload
         if phase_name == PhaseName.QUESTION:
             with open(os.path.join(self.output_dir, "requirements_audit.json"), "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
+                json.dump(payload, f, indent=2, sort_keys=True)
         elif phase_name == PhaseName.DELETE:
             with open(os.path.join(self.output_dir, "deletion_candidates.json"), "w", encoding="utf-8") as f:
-                json.dump(payload.get("deletion_candidates", []), f, indent=2)
+                json.dump(payload.get("deletion_candidates", []), f, indent=2, sort_keys=True)
             with open(os.path.join(self.output_dir, "diff.patch"), "w", encoding="utf-8") as f:
                 f.write(payload.get("diff_patch", ""))
             with open(os.path.join(self.output_dir, "rollback_reference.json"), "w", encoding="utf-8") as f:
-                json.dump(payload.get("rollback_reference", {}), f, indent=2)
+                json.dump(payload.get("rollback_reference", {}), f, indent=2, sort_keys=True)
         elif phase_name == PhaseName.SIMPLIFY:
             with open(os.path.join(self.output_dir, "contract_diff.json"), "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
+                json.dump(payload, f, indent=2, sort_keys=True)
         elif phase_name == PhaseName.VERIFY:
             with open(os.path.join(self.output_dir, "test_results.json"), "w", encoding="utf-8") as f:
-                json.dump(payload.get("test_results", {}), f, indent=2)
+                json.dump(payload.get("test_results", {}), f, indent=2, sort_keys=True)
             with open(os.path.join(self.output_dir, "benchmark.json"), "w", encoding="utf-8") as f:
-                json.dump(payload.get("benchmark", {}), f, indent=2)
+                json.dump(payload.get("benchmark", {}), f, indent=2, sort_keys=True)
             with open(os.path.join(self.output_dir, "runtime_evidence.json"), "w", encoding="utf-8") as f:
-                json.dump(payload.get("runtime_evidence", {}), f, indent=2)
+                json.dump(payload.get("runtime_evidence", {}), f, indent=2, sort_keys=True)
         elif phase_name == PhaseName.CODIFY:
             candidates = payload.get("candidates", [])
             with open(os.path.join(self.output_dir, "knowledge_candidate.yaml"), "w", encoding="utf-8") as f:
                 yaml.dump(candidates, f, sort_keys=False, allow_unicode=True)
             with open(os.path.join(self.output_dir, "admission_record.json"), "w", encoding="utf-8") as f:
-                json.dump(payload.get("admission_record", {}), f, indent=2)
+                json.dump(payload.get("admission_record", {}), f, indent=2, sort_keys=True)
 
-    def run_all(self) -> List[EvidenceEnvelope]:
+    def run_all(self) -> list[EvidenceEnvelope]:
         order = [
             PhaseName.QUESTION,
             PhaseName.DELETE,
@@ -134,9 +136,9 @@ class HardeningRunner:
             "final_status": "PASS" if all(e.status == VerificationStatus.PASS for e in self.envelopes) else "WARN",
         }
         with open(os.path.join(self.output_dir, "evidence_manifest.json"), "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2)
+            json.dump(manifest, f, indent=2, sort_keys=True)
 
         with open(os.path.join(self.output_dir, "work_unit.json"), "w", encoding="utf-8") as f:
-            json.dump(self.work_unit.to_dict(), f, indent=2)
+            json.dump(self.work_unit.to_dict(), f, indent=2, sort_keys=True)
 
         return self.envelopes

@@ -1,0 +1,491 @@
+{
+  "contract_analysis": [
+    {
+      "breaking_change": false,
+      "interface": "base.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "base.py::run()",
+      "observation": "Returns standard EvidenceEnvelope.",
+      "status": "CANONICAL"
+    },
+    {
+      "breaking_change": false,
+      "interface": "codify.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "delete.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "question.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "simplify.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "verify.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "candidate_id",
+        "observation",
+        "category",
+        "severity",
+        "finding_description",
+        "target_lines",
+        "rule_id",
+        "rule_title",
+        "enforcement_mechanism",
+        "rationale",
+        "evidence_references",
+        "suggested_fix",
+        "created_at"
+      ],
+      "has_docstring": false,
+      "line": 26,
+      "module": "admission.py",
+      "name": "create_candidate"
+    },
+    {
+      "args": [
+        "candidate",
+        "decision",
+        "reviewer",
+        "notes"
+      ],
+      "has_docstring": false,
+      "line": 65,
+      "module": "admission.py",
+      "name": "review_candidate"
+    },
+    {
+      "args": [
+        "candidate"
+      ],
+      "has_docstring": false,
+      "line": 85,
+      "module": "admission.py",
+      "name": "export_candidate_yaml"
+    },
+    {
+      "args": [
+        "yaml_content"
+      ],
+      "has_docstring": false,
+      "line": 89,
+      "module": "admission.py",
+      "name": "load_candidate_yaml"
+    },
+    {
+      "args": [],
+      "has_docstring": false,
+      "line": 12,
+      "module": "cli.py",
+      "name": "create_parser"
+    },
+    {
+      "args": [
+        "args"
+      ],
+      "has_docstring": false,
+      "line": 42,
+      "module": "cli.py",
+      "name": "handle_run"
+    },
+    {
+      "args": [
+        "args"
+      ],
+      "has_docstring": false,
+      "line": 72,
+      "module": "cli.py",
+      "name": "handle_review"
+    },
+    {
+      "args": [
+        "argv"
+      ],
+      "has_docstring": false,
+      "line": 109,
+      "module": "cli.py",
+      "name": "main"
+    },
+    {
+      "args": [],
+      "has_docstring": false,
+      "line": 15,
+      "module": "models.py",
+      "name": "utc_now_iso"
+    },
+    {
+      "args": [
+        "text"
+      ],
+      "has_docstring": false,
+      "line": 19,
+      "module": "models.py",
+      "name": "sha256_text"
+    },
+    {
+      "args": [
+        "data"
+      ],
+      "has_docstring": false,
+      "line": 23,
+      "module": "models.py",
+      "name": "sha256_dict"
+    },
+    {
+      "args": [],
+      "has_docstring": true,
+      "line": 28,
+      "module": "models.py",
+      "name": "compute_environment_hash"
+    },
+    {
+      "args": [
+        "target_path"
+      ],
+      "has_docstring": true,
+      "line": 39,
+      "module": "models.py",
+      "name": "compute_target_hash"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 129,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 146,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 169,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 192,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 207,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 230,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 257,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "output_dir"
+      ],
+      "has_docstring": false,
+      "line": 40,
+      "module": "runner.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "phase_name",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 56,
+      "module": "runner.py",
+      "name": "run_phase"
+    },
+    {
+      "args": [
+        "self",
+        "phase_name",
+        "envelope"
+      ],
+      "has_docstring": false,
+      "line": 90,
+      "module": "runner.py",
+      "name": "_write_phase_artifacts"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 119,
+      "module": "runner.py",
+      "name": "run_all"
+    },
+    {
+      "args": [
+        "current",
+        "target"
+      ],
+      "has_docstring": false,
+      "line": 28,
+      "module": "states.py",
+      "name": "can_transition"
+    },
+    {
+      "args": [
+        "work_unit",
+        "target",
+        "reason"
+      ],
+      "has_docstring": false,
+      "line": 32,
+      "module": "states.py",
+      "name": "transition"
+    },
+    {
+      "args": [
+        "self",
+        "name",
+        "version",
+        "method_version"
+      ],
+      "has_docstring": false,
+      "line": 24,
+      "module": "base.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 29,
+      "module": "base.py",
+      "name": "compute_input_hash"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": true,
+      "line": 39,
+      "module": "base.py",
+      "name": "execute"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context",
+        "output_dir"
+      ],
+      "has_docstring": false,
+      "line": 49,
+      "module": "base.py",
+      "name": "run"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 20,
+      "module": "codify.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 23,
+      "module": "codify.py",
+      "name": "execute"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 15,
+      "module": "delete.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "target_path"
+      ],
+      "has_docstring": false,
+      "line": 18,
+      "module": "delete.py",
+      "name": "_collect_sources"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 32,
+      "module": "delete.py",
+      "name": "execute"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 14,
+      "module": "question.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "target_path"
+      ],
+      "has_docstring": false,
+      "line": 17,
+      "module": "question.py",
+      "name": "_collect_sources"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 31,
+      "module": "question.py",
+      "name": "execute"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 14,
+      "module": "simplify.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "target_path"
+      ],
+      "has_docstring": false,
+      "line": 17,
+      "module": "simplify.py",
+      "name": "_collect_sources"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 31,
+      "module": "simplify.py",
+      "name": "execute"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 15,
+      "module": "verify.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "target_path"
+      ],
+      "has_docstring": false,
+      "line": 18,
+      "module": "verify.py",
+      "name": "_collect_sources"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 32,
+      "module": "verify.py",
+      "name": "execute"
+    }
+  ],
+  "interface_breaking_changes_detected": 0,
+  "interfaces_audited": 44,
+  "simplification_summary": "All audited functions preserve external contracts and return types.",
+  "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+  "total_files_audited": 13
+}

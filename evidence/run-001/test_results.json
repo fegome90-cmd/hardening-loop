@@ -1,29 +1,30 @@
 {
-  "total_checks": 4,
-  "passed_checks": 1,
-  "failed_checks": 3,
   "ast_validation": {
-    "passed": true,
-    "duration_ms": 0.452
+    "errors": [],
+    "passed": true
   },
+  "failed_checks": 3,
+  "passed_checks": 1,
   "safety_checks": [
     {
-      "check": "tool_whitelist_enforcement",
+      "check": "envelope_provenance_fields",
+      "details": "Checking if EvidenceEnvelope includes method_version and environment_hash.",
       "passed": false,
-      "severity_if_failed": "HIGH",
-      "details": "Checking if tool invocation is guarded by a strict whitelist."
+      "severity_if_failed": "MEDIUM"
     },
     {
-      "check": "file_reader_workspace_boundary",
+      "check": "knowledge_admission_gate_invariants",
+      "details": "Checking if admission gate forbids auto-canonical promotion.",
       "passed": false,
-      "severity_if_failed": "HIGH",
-      "details": "Checking if file read tool verifies directory boundaries."
+      "severity_if_failed": "CRITICAL"
     },
     {
-      "check": "structured_evidence_logging",
+      "check": "state_machine_acyclic_transitions",
+      "details": "Checking if valid state lifecycle transitions are defined.",
       "passed": false,
-      "severity_if_failed": "MEDIUM",
-      "details": "Checking if tool executions produce structured audit logs."
+      "severity_if_failed": "HIGH"
     }
-  ]
+  ],
+  "total_checks": 4,
+  "total_files_tested": 1
 }

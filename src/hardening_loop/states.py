@@ -1,15 +1,15 @@
 """State machine and lifecycle governance for WorkUnit and Knowledge."""
 
-from typing import Dict, Set
 from .models import HardeningState, WorkUnit, utc_now_iso
 
 
 class InvalidStateTransitionError(ValueError):
     """Raised when an illegal transition is attempted on a WorkUnit."""
+
     pass
 
 
-VALID_TRANSITIONS: Dict[HardeningState, Set[HardeningState]] = {
+VALID_TRANSITIONS: dict[HardeningState, set[HardeningState]] = {
     HardeningState.DRAFT: {HardeningState.AUDITING},
     HardeningState.AUDITING: {HardeningState.PATCH_PROPOSED, HardeningState.DRAFT},
     HardeningState.PATCH_PROPOSED: {HardeningState.VERIFIED, HardeningState.AUDITING},
@@ -38,10 +38,12 @@ class StateMachine:
         work_unit.state = target
         work_unit.updated_at = utc_now_iso()
         if reason:
-            work_unit.metadata.setdefault("transition_history", []).append({
-                "from": work_unit.state.value,
-                "to": target.value,
-                "reason": reason,
-                "timestamp": work_unit.updated_at,
-            })
+            work_unit.metadata.setdefault("transition_history", []).append(
+                {
+                    "from": work_unit.state.value,
+                    "to": target.value,
+                    "reason": reason,
+                    "timestamp": work_unit.updated_at,
+                }
+            )
         return work_unit

@@ -1,10 +1,8 @@
 """Command-line interface for Algorithmic Code Hardening Loop."""
 
 import argparse
-import json
 import os
 import sys
-from typing import List, Optional
 
 from .admission import KnowledgeAdmissionGate
 from .models import AdmissionStatus, PhaseName
@@ -48,7 +46,7 @@ def handle_run(args: argparse.Namespace) -> int:
         return 1
 
     runner = HardeningRunner(target_path=target, output_dir=args.output)
-    print(f"=== Algorithmic Code Hardening Loop v0.3 ===")
+    print("=== Algorithmic Code Hardening Loop v0.3 ===")
     print(f"Target: {target}")
     print(f"Output: {os.path.abspath(args.output)}")
     print(f"Initial State: {runner.work_unit.state.value}")
@@ -56,11 +54,15 @@ def handle_run(args: argparse.Namespace) -> int:
     if args.phase == "all":
         envelopes = runner.run_all()
         for env in envelopes:
-            print(f"[{env.phase.value.upper()}] Status: {env.status.value} | Output Hash: {env.output_hash[:12]}... | ID: {env.evidence_id}")
+            print(
+                f"[{env.phase.value.upper()}] Status: {env.status.value} | Output Hash: {env.output_hash[:12]}... | ID: {env.evidence_id}"
+            )
     else:
         phase_enum = PhaseName(args.phase)
         env = runner.run_phase(phase_enum)
-        print(f"[{env.phase.value.upper()}] Status: {env.status.value} | Output Hash: {env.output_hash[:12]}... | ID: {env.evidence_id}")
+        print(
+            f"[{env.phase.value.upper()}] Status: {env.status.value} | Output Hash: {env.output_hash[:12]}... | ID: {env.evidence_id}"
+        )
 
     print(f"Final State: {runner.work_unit.state.value}")
     print(f"Evidence artifacts successfully generated in {os.path.abspath(args.output)}")
@@ -73,12 +75,13 @@ def handle_review(args: argparse.Namespace) -> int:
         print(f"Error: Candidate file '{file_path}' does not exist.", file=sys.stderr)
         return 1
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
     decision = AdmissionStatus.ACCEPTED if args.admit else AdmissionStatus.REJECTED
     try:
         import yaml
+
         raw_items = yaml.safe_load(content)
         if isinstance(raw_items, list):
             reviewed_items = []
@@ -103,7 +106,7 @@ def handle_review(args: argparse.Namespace) -> int:
         return 1
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = create_parser()
     args = parser.parse_args(argv)
     if args.command == "run":

@@ -1,0 +1,30 @@
+{
+  "ast_validation": {
+    "errors": [],
+    "passed": true
+  },
+  "failed_checks": 0,
+  "passed_checks": 4,
+  "safety_checks": [
+    {
+      "check": "envelope_provenance_fields",
+      "details": "Checking if EvidenceEnvelope includes method_version and environment_hash.",
+      "passed": true,
+      "severity_if_failed": "MEDIUM"
+    },
+    {
+      "check": "knowledge_admission_gate_invariants",
+      "details": "Checking if admission gate forbids auto-canonical promotion.",
+      "passed": true,
+      "severity_if_failed": "CRITICAL"
+    },
+    {
+      "check": "state_machine_acyclic_transitions",
+      "details": "Checking if valid state lifecycle transitions are defined.",
+      "passed": true,
+      "severity_if_failed": "HIGH"
+    }
+  ],
+  "total_checks": 4,
+  "total_files_tested": 13
+}

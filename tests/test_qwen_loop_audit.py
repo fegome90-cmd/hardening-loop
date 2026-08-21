@@ -3,18 +3,25 @@
 import json
 import os
 import tempfile
+
 import pytest
-from hardening_loop.models import HardeningState, PhaseName, VerificationStatus
+
+from hardening_loop.models import HardeningState
 from hardening_loop.runner import HardeningRunner
 
 FIXTURE_SCRIPT = os.path.join(os.path.dirname(__file__), "..", "fixtures", "qwen-tool-loop.py")
 REAL_SCRIPT = "/Users/felipe_gonzalez/Developer/examen_grado/scripts/qwen-tool-loop.py"
 
 
-@pytest.mark.parametrize("target_path", [
-    FIXTURE_SCRIPT,
-    pytest.param(REAL_SCRIPT, marks=pytest.mark.skipif(not os.path.exists(REAL_SCRIPT), reason="Real script not present")),
-])
+@pytest.mark.parametrize(
+    "target_path",
+    [
+        FIXTURE_SCRIPT,
+        pytest.param(
+            REAL_SCRIPT, marks=pytest.mark.skipif(not os.path.exists(REAL_SCRIPT), reason="Real script not present")
+        ),
+    ],
+)
 def test_qwen_tool_loop_full_hardening_cycle(target_path):
     target = os.path.abspath(target_path)
     with tempfile.TemporaryDirectory() as out_dir:

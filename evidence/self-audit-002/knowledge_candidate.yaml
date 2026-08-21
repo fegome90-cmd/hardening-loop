@@ -1,0 +1,55 @@
+- candidate_id: kc-self-provenance-01
+  observation: Evidence envelopes must track both method_version and host environment_hash
+    for hermetic reproducibility.
+  finding:
+    category: PROVENANCE_GAP
+    severity: HIGH
+    description: Without method_version and environment_hash, evidence artifacts cannot
+      be cross-validated across different CI or OS environments.
+    target_lines:
+    - 1
+    - 2
+    - 3
+  rule_proposal:
+    rule_id: RULE-EVIDENCE-001
+    title: Mandatory Method & Environment Provenance in Evidence Envelopes
+    enforcement_mechanism: SCHEMA_GUARD
+    rationale: Hermetic reproducibility requires capturing the exact runtime environment
+      digest and framework version.
+    suggested_fix: Include method_version and environment_hash as required schema
+      properties in evidence_envelope.schema.json.
+  evidence_references: &id001
+  - evi-6d79b0f7762c
+  - evi-56c05b66131a
+  - evi-a0c504e52c7a
+  - evi-8fc832032bb6
+  admission_status: PENDING_REVIEW
+  reviewer: null
+  reviewed_at: null
+  review_notes: null
+  created_at: CANONICAL_EPOCH
+- candidate_id: kc-self-gate-02
+  observation: Knowledge Admission Gate must strictly forbid transitions to ADMITTED
+    without non-empty reviewer identity.
+  finding:
+    category: SECURITY
+    severity: CRITICAL
+    description: An unauthenticated or automated reviewer could pollute canonical
+      knowledge.
+    target_lines:
+    - 40
+    - 41
+    - 42
+  rule_proposal:
+    rule_id: RULE-GATE-001
+    title: Mandatory Human Reviewer Identity for Knowledge Promotion
+    enforcement_mechanism: CONTRACT_VALIDATOR
+    rationale: The knowledge base remains trustworthy only if all promoted rules have
+      verifiable human/curator provenance.
+    suggested_fix: Enforce reviewer.strip() check in KnowledgeAdmissionGate.review_candidate.
+  evidence_references: *id001
+  admission_status: PENDING_REVIEW
+  reviewer: null
+  reviewed_at: null
+  review_notes: null
+  created_at: CANONICAL_EPOCH
