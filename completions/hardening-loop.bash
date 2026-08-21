@@ -5,7 +5,7 @@ _hardening_loop_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local subcommands="run review inspect validate"
+    local subcommands="run review inspect validate telemetry"
     local phases="all question delete simplify verify codify"
     local schemas="evidence_envelope knowledge_candidate work_unit"
 
@@ -52,7 +52,7 @@ _hardening_loop_completions() {
             fi
             return 0
             ;;
-        inspect)
+        inspect|telemetry)
             case "$prev" in
                 --workspace-root)
                     _filedir -d

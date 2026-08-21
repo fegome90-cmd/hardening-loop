@@ -8,7 +8,7 @@
   "safety_checks": [
     {
       "check": "envelope_provenance_fields",
-      "details": "Checking if EvidenceEnvelope includes method_version and environment_hash.",
+      "details": "Checking if EvidenceEnvelope includes method_version and execution_context_hash.",
       "passed": false,
       "severity_if_failed": "MEDIUM"
     },

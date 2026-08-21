@@ -26,11 +26,11 @@
       "type": "security_constraint"
     },
     {
-      "audit_finding": "Missing explicit method_version/environment_hash tracking",
+      "audit_finding": "Missing explicit method_version/execution_context_hash tracking",
       "id": "REQ-SEC-004",
       "justification_valid": true,
       "source": "evidence_provenance",
-      "statement": "All evidence envelopes must declare method version and host environment hash.",
+      "statement": "All evidence envelopes must declare method version and execution context hash.",
       "type": "security_constraint"
     },
     {

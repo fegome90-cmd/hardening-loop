@@ -15,7 +15,6 @@ from .models import (
     compute_canonical_directory_digest,
     compute_execution_context_hash,
     sha256_dict,
-    utc_now_iso,
 )
 from .phases import (
     BasePhase,
@@ -26,6 +25,7 @@ from .phases import (
     VerifyPhase,
 )
 from .states import StateMachine
+from .telemetry import TelemetryCollector
 
 
 class HardeningRunner:
@@ -58,6 +58,7 @@ class HardeningRunner:
             },
         )
         self.envelopes: list[EvidenceEnvelope] = []
+        self.telemetry = TelemetryCollector()
 
     def run_phase(self, phase_name: PhaseName, context: dict[str, Any] | None = None) -> EvidenceEnvelope:
         phase = self.PHASE_MAP.get(phase_name)
@@ -67,11 +68,22 @@ class HardeningRunner:
         if self.work_unit.state == HardeningState.DRAFT:
             StateMachine.transition(self.work_unit, HardeningState.AUDITING, reason="Starting hardening run")
 
+        self.telemetry.start_phase(phase_name.value)
         ctx = context or {}
         ctx["evidence_ids"] = [e.evidence_id for e in self.envelopes]
         envelope = phase.run(self.target_path, ctx, self.output_dir)
         self.envelopes.append(envelope)
         self.work_unit.phases_executed.append(phase_name.value)
+
+        # Extract telemetry metrics from payload if present
+        payload = envelope.canonical.artifact_payload
+        loc_count = payload.get("total_lines_of_code", 0)
+        if not loc_count and os.path.exists(self.target_path):
+            if os.path.isfile(self.target_path):
+                with open(self.target_path, encoding="utf-8", errors="ignore") as f:
+                    loc_count = len(f.readlines())
+        self.telemetry.record_phase_metrics(phase_name.value, loc=loc_count)
+        self.telemetry.end_phase(phase_name.value)
 
         # Write phase-specific canonical artifacts to output directory
         self._write_phase_artifacts(phase_name, envelope)
@@ -137,14 +149,16 @@ class HardeningRunner:
         canonical_blocks = [e.canonical.to_dict() for e in self.envelopes]
         canonical_manifest_digest = sha256_dict({"phases": canonical_blocks})
 
+        telemetry_summary = self.telemetry.get_summary()
+        telemetry_summary["final_status"] = (
+            "PASS" if all(e.status == VerificationStatus.PASS for e in self.envelopes) else "WARN"
+        )
+
         manifest = {
             "canonical_manifest_digest": canonical_manifest_digest,
             "work_unit": self.work_unit.to_dict(),
             "envelopes": [e.to_dict() for e in self.envelopes],
-            "runtime_telemetry": {
-                "completed_at": utc_now_iso(),
-                "final_status": "PASS" if all(e.status == VerificationStatus.PASS for e in self.envelopes) else "WARN",
-            },
+            "runtime_telemetry": telemetry_summary,
         }
         with open(os.path.join(self.output_dir, "evidence_manifest.json"), "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2, sort_keys=True)

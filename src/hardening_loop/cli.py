@@ -78,6 +78,17 @@ def create_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("--json", action="store_true", help="Emit validation result as JSON")
     validate_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-essential output")
 
+    # Subcommand: telemetry (Observability, Latencies, Throughput, and Memory)
+    telemetry_parser = subparsers.add_parser(
+        "telemetry", help="Display performance telemetry, latencies, and throughput"
+    )
+    telemetry_parser.add_argument("evidence_dir", help="Path to evidence directory containing evidence_manifest.json")
+    telemetry_parser.add_argument(
+        "--workspace-root", default=None, help="Root directory confining authorized file access"
+    )
+    telemetry_parser.add_argument("--json", action="store_true", help="Emit telemetry metrics as JSON")
+    telemetry_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-essential output")
+
     return parser
 
 
@@ -325,6 +336,44 @@ def handle_validate(args: argparse.Namespace) -> int:
         return 1
 
 
+def handle_telemetry(args: argparse.Namespace) -> int:
+    try:
+        evidence_dir = assert_within_workspace(args.evidence_dir, args.workspace_root)
+    except PathSandboxError as e:
+        print(f"Path Sandbox Violation: {e}", file=sys.stderr)
+        return 2
+
+    manifest_path = os.path.join(evidence_dir, "evidence_manifest.json")
+    if not os.path.exists(manifest_path):
+        print(f"Error: Manifest file '{manifest_path}' not found.", file=sys.stderr)
+        return 1
+
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        telemetry = manifest.get("runtime_telemetry", {})
+        if args.json:
+            print(json.dumps(telemetry, indent=2, sort_keys=True))
+        elif not args.quiet:
+            print("=== Hardening Loop Telemetry & Observability Report ===")
+            print(f"Evidence Directory: {evidence_dir}")
+            print(f"Total Duration:     {telemetry.get('total_duration_ms', 0)} ms")
+            print(f"Total LOC Analyzed: {telemetry.get('total_loc_analyzed', 0)} lines")
+            print(f"Throughput:         {telemetry.get('throughput_loc_per_sec', 0)} LOC/sec")
+            print(f"Peak Memory (RSS):  {telemetry.get('peak_memory_mb', 0)} MB")
+            print(f"Final Status:       {telemetry.get('final_status', 'UNKNOWN')}")
+            print("-" * 55)
+            print("Phase Durations:")
+            durations = telemetry.get("phase_durations_ms", {})
+            for phase, duration in durations.items():
+                print(f"  - {phase:<10}: {duration:>8.3f} ms")
+        return 0
+    except Exception as e:
+        print(f"Error reading telemetry: {e}", file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = create_parser()
     args = parser.parse_args(argv)
@@ -336,6 +385,8 @@ def main(argv: list[str] | None = None) -> int:
         return handle_inspect(args)
     elif args.command == "validate":
         return handle_validate(args)
+    elif args.command == "telemetry":
+        return handle_telemetry(args)
     return 0
 
 

@@ -1,11 +1,9 @@
 {
-  "completed_at": "2026-08-21T12:03:45.864850+00:00",
+  "canonical_manifest_digest": "a090b5183e2df8e8873074a2e5dfeb657ac6a8b5982b02826d9040a1bc62046a",
   "envelopes": [
     {
-      "artifact": {
-        "artifact_type": "question_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/question_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "challenged_assumptions_count": 2,
           "requirements": [
             {
@@ -33,11 +31,11 @@
               "type": "security_constraint"
             },
             {
-              "audit_finding": "Missing explicit method_version/environment_hash tracking",
+              "audit_finding": "Missing explicit method_version/execution_context_hash tracking",
               "id": "REQ-SEC-004",
               "justification_valid": true,
               "source": "evidence_provenance",
-              "statement": "All evidence envelopes must declare method version and host environment hash.",
+              "statement": "All evidence envelopes must declare method version and execution context hash.",
               "type": "security_constraint"
             },
             {
@@ -52,32 +50,30 @@
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
           "total_files_audited": 1,
           "total_requirements_audited": 5
-        }
+        },
+        "evidence_id": "evi-95c93e0ea8f0",
+        "execution_context_hash": "f0cd279fd89f781517bf1331ab018916de0bd81fac150bcfae92553df8f3c844",
+        "input_hash": "454516d4dd518ab1dece215d017eb1d8d467f2d551b3d758f5528713fa407e1a",
+        "method_version": "v0.3",
+        "output_hash": "95c93e0ea8f0827fdc4bdc9d86e5df29fa0ff8298eed03738b634e6d3c4eace1",
+        "phase": "question",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-f419be2d36a1",
-      "input_hash": "454516d4dd518ab1dece215d017eb1d8d467f2d551b3d758f5528713fa407e1a",
-      "method_version": "v0.3",
-      "output_hash": "f419be2d36a16d7c28d0bfd7d78d8fc86950f1083089217075f7511eb4a39815",
-      "phase": "question",
-      "producer": "hardening-loop:question:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.848346+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "Parsed 1 source file(s) for requirements extraction",
           "Audited 5 requirements across 1 file(s)"
         ],
-        "duration_ms": 0.21,
+        "duration_ms": 0.286,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:question:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T13:40:12.504868+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "delete_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/delete_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "deletion_candidates": [
             {
               "action": "REPLACE_WITH_STRUCTURED_RUNNER",
@@ -116,33 +112,31 @@
           },
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
           "total_files_scanned": 1
-        }
+        },
+        "evidence_id": "evi-ac3c99f15c78",
+        "execution_context_hash": "f0cd279fd89f781517bf1331ab018916de0bd81fac150bcfae92553df8f3c844",
+        "input_hash": "0165981b298f289df24338dd1140078002dd4be8aaddcf956bcb1dc5d2c4d07c",
+        "method_version": "v0.3",
+        "output_hash": "ac3c99f15c78759751542833b8b09760ee6ef51ed0797e7610f2c2a4eacc2c0c",
+        "phase": "delete",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-ac3c99f15c78",
-      "input_hash": "8d64c2e051a9b0cc99c4d4914575b3b0c3d50958b6b15435d9074ca6169d1d78",
-      "method_version": "v0.3",
-      "output_hash": "ac3c99f15c78759751542833b8b09760ee6ef51ed0797e7610f2c2a4eacc2c0c",
-      "phase": "delete",
-      "producer": "hardening-loop:delete:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.860679+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "Scanned 1 source file(s) for deletion candidates and over-privileged harnesses",
           "Identified 4 deletion candidates",
           "Generated deterministic rollback reference"
         ],
-        "duration_ms": 0.29,
+        "duration_ms": 0.283,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:delete:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T13:40:12.516020+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "simplify_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/simplify_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "contract_analysis": [
             {
               "breaking_change": false,
@@ -195,32 +189,30 @@
           "simplification_summary": "All audited functions preserve external contracts and return types.",
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
           "total_files_audited": 1
-        }
+        },
+        "evidence_id": "evi-fbeaef974e9b",
+        "execution_context_hash": "f0cd279fd89f781517bf1331ab018916de0bd81fac150bcfae92553df8f3c844",
+        "input_hash": "775b5d0e108ea2dc257fd86c07d1886e4e27c718cdb2d6ecf2c04360635640ad",
+        "method_version": "v0.3",
+        "output_hash": "fbeaef974e9b371c657461e1ed6a823c15d0d8db63e30f9f8701abc58cd5af90",
+        "phase": "simplify",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-fbeaef974e9b",
-      "input_hash": "87ffe910ce04ecd3a1111d636d611ab717bb9427c448c4d4a7b3b8a52ba0a027",
-      "method_version": "v0.3",
-      "output_hash": "fbeaef974e9b371c657461e1ed6a823c15d0d8db63e30f9f8701abc58cd5af90",
-      "phase": "simplify",
-      "producer": "hardening-loop:simplify:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.861894+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "Parsed 4 function definitions across 1 file(s)",
           "Audited 4 functions without introducing interface breaking changes"
         ],
-        "duration_ms": 0.9,
+        "duration_ms": 1.867,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:simplify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T13:40:12.527466+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "verify_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/verify_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "benchmark": {
             "loop_target_threshold_ms": 100.0,
             "meets_fast_feedback_sla": true
@@ -242,7 +234,7 @@
             "safety_checks": [
               {
                 "check": "envelope_provenance_fields",
-                "details": "Checking if EvidenceEnvelope includes method_version and environment_hash.",
+                "details": "Checking if EvidenceEnvelope includes method_version and execution_context_hash.",
                 "passed": false,
                 "severity_if_failed": "MEDIUM"
               },
@@ -262,32 +254,30 @@
             "total_checks": 4,
             "total_files_tested": 1
           }
-        }
+        },
+        "evidence_id": "evi-6cf70c84872d",
+        "execution_context_hash": "f0cd279fd89f781517bf1331ab018916de0bd81fac150bcfae92553df8f3c844",
+        "input_hash": "22d06530ba879b481684453025053c13e653e1d25cbd4a57146a5db223e8890d",
+        "method_version": "v0.3",
+        "output_hash": "6cf70c84872d0d238f55d4d75cb249aedc84cc11cc79fa88ce90e9eed02c800e",
+        "phase": "verify",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-b3e5f70966b6",
-      "input_hash": "2a1c8723479b5a211520b784e45a95059e68435ab7470fcdc4c6bb3a5284746d",
-      "method_version": "v0.3",
-      "output_hash": "b3e5f70966b65a67bfde2ca32c24101c0c52d114490d4b2c4ef0c2285a181295",
-      "phase": "verify",
-      "producer": "hardening-loop:verify:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.862563+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "AST compilation passed for 1 source file(s)",
-          "Completed verification of 1 file(s) in 0.383ms"
+          "Completed verification of 1 file(s) in 0.531ms"
         ],
-        "duration_ms": 0.45,
+        "duration_ms": 0.622,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:verify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T13:40:12.537317+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "codify_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/codify_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "admission_record": {
             "admission_status": "PENDING_REVIEW",
             "gate_policy": "NO_AUTO_CANONICAL",
@@ -299,10 +289,10 @@
               "candidate_id": "kc-bd0b7d675cba",
               "created_at": "1970-01-01T00:00:00+00:00",
               "evidence_references": [
-                "evi-f419be2d36a1",
+                "evi-95c93e0ea8f0",
                 "evi-ac3c99f15c78",
                 "evi-fbeaef974e9b",
-                "evi-b3e5f70966b6"
+                "evi-6cf70c84872d"
               ],
               "finding": {
                 "category": "SECURITY",
@@ -332,10 +322,10 @@
               "candidate_id": "kc-01ab93723a70",
               "created_at": "1970-01-01T00:00:00+00:00",
               "evidence_references": [
-                "evi-f419be2d36a1",
+                "evi-95c93e0ea8f0",
                 "evi-ac3c99f15c78",
                 "evi-fbeaef974e9b",
-                "evi-b3e5f70966b6"
+                "evi-6cf70c84872d"
               ],
               "finding": {
                 "category": "SECURITY",
@@ -362,57 +352,73 @@
           ],
           "candidates_count": 2,
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py"
-        }
+        },
+        "evidence_id": "evi-19ff0ca9d529",
+        "execution_context_hash": "f0cd279fd89f781517bf1331ab018916de0bd81fac150bcfae92553df8f3c844",
+        "input_hash": "336423b4ebf4ab0e2759d2eb2dc79033d018bc7e0543495fe35e0dc4f1459b1f",
+        "method_version": "v0.3",
+        "output_hash": "19ff0ca9d529d79af521ad55b438a76e53950656247b44c121c69a86d946630f",
+        "phase": "codify",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-70e8461bfa93",
-      "input_hash": "d4bac0719ce9d8e12b5b1ccfd62fe536e45a534ef487278c247acfa8c0724fb9",
-      "method_version": "v0.3",
-      "output_hash": "70e8461bfa9353271a1cf44c2a8cd70460527373f5a3112c878a83e16037eac2",
-      "phase": "codify",
-      "producer": "hardening-loop:codify:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.863762+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "Formulated 2 knowledge candidate(s) for admission review",
           "Strict non-canonical invariant enforced: All candidates set to PENDING_REVIEW"
         ],
-        "duration_ms": 0.9,
+        "duration_ms": 1.217,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:codify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T13:40:12.548174+00:00"
       }
     }
   ],
-  "final_status": "PASS",
+  "runtime_telemetry": {
+    "final_status": "PASS",
+    "peak_memory_mb": 32.25,
+    "phase_durations_ms": {
+      "codify": 10.491,
+      "delete": 10.045,
+      "question": 10.556,
+      "simplify": 11.144,
+      "verify": 9.428
+    },
+    "throughput_loc_per_sec": 2284.0,
+    "timestamp": "2026-08-21T13:40:12.549591+00:00",
+    "total_ast_nodes_visited": 0,
+    "total_duration_ms": 51.664,
+    "total_loc_analyzed": 118
+  },
   "work_unit": {
-    "created_at": "2026-08-21T12:03:45.847329+00:00",
+    "created_at": "2026-08-21T13:40:12.495275+00:00",
     "metadata": {
+      "execution_context_hash": "f0cd279fd89f781517bf1331ab018916de0bd81fac150bcfae92553df8f3c844",
       "method_version": "v0.3",
       "runner_version": "0.1.0-beta",
       "transition_history": [
         {
           "from": "AUDITING",
           "reason": "Starting hardening run",
-          "timestamp": "2026-08-21T12:03:45.848112+00:00",
+          "timestamp": "2026-08-21T13:40:12.495474+00:00",
           "to": "AUDITING"
         },
         {
           "from": "PATCH_PROPOSED",
           "reason": "Audit and simplification complete",
-          "timestamp": "2026-08-21T12:03:45.862088+00:00",
+          "timestamp": "2026-08-21T13:40:12.528172+00:00",
           "to": "PATCH_PROPOSED"
         },
         {
           "from": "VERIFIED",
           "reason": "Verification tests passed",
-          "timestamp": "2026-08-21T12:03:45.862829+00:00",
+          "timestamp": "2026-08-21T13:40:12.537937+00:00",
           "to": "VERIFIED"
         },
         {
           "from": "KNOWLEDGE_CANDIDATE",
           "reason": "Knowledge candidates formulated",
-          "timestamp": "2026-08-21T12:03:45.864839+00:00",
+          "timestamp": "2026-08-21T13:40:12.549508+00:00",
           "to": "KNOWLEDGE_CANDIDATE"
         }
       ]
@@ -427,7 +433,7 @@
     "state": "KNOWLEDGE_CANDIDATE",
     "target_hash": "344a8b52f4b841d712529fd652917648f9f7b2125a6784e7ef90a0939baec778",
     "target_path": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
-    "updated_at": "2026-08-21T12:03:45.864839+00:00",
+    "updated_at": "2026-08-21T13:40:12.549508+00:00",
     "work_unit_id": "wu-344a8b52f4b8"
   }
 }

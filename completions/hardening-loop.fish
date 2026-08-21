@@ -9,6 +9,7 @@ complete -c hardening-loop -n "__fish_use_subcommand" -a "run" -d "Execute harde
 complete -c hardening-loop -n "__fish_use_subcommand" -a "review" -d "Review a Knowledge Candidate in Admission Gate"
 complete -c hardening-loop -n "__fish_use_subcommand" -a "inspect" -d "Cryptographically verify an evidence directory"
 complete -c hardening-loop -n "__fish_use_subcommand" -a "validate" -d "Validate artifact against normative JSON Schemas"
+complete -c hardening-loop -n "__fish_use_subcommand" -a "telemetry" -d "Display performance telemetry and latencies"
 
 # Subcommand: run
 complete -c hardening-loop -n "__fish_seen_subcommand_from run" -l target -r -F -d "Path to target code or module"
@@ -40,3 +41,9 @@ complete -c hardening-loop -n "__fish_seen_subcommand_from validate" -l workspac
 complete -c hardening-loop -n "__fish_seen_subcommand_from validate" -l json -d "Emit validation result as JSON"
 complete -c hardening-loop -n "__fish_seen_subcommand_from validate" -s q -l quiet -d "Suppress non-essential output"
 complete -c hardening-loop -n "__fish_seen_subcommand_from validate" -F
+
+# Subcommand: telemetry
+complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -l workspace-root -r -d "Root directory confining authorized file access"
+complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -l json -d "Emit telemetry metrics as JSON"
+complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -s q -l quiet -d "Suppress non-essential output"
+complete -c hardening-loop -n "__fish_seen_subcommand_from telemetry" -F
