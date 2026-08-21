@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hardening Loop Event v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_name", "timestamp", "run_id", "trace_id", "span_id", "parent_span_id", "status"],
+  "properties": {
+    "schema_version": {"const": "hardening-loop.telemetry.v0.2"},
+    "event_name": {"enum": [
+      "hardening_run_started", "hardening_input_profiled", "hardening_run_completed", "hardening_run_failed", "hardening_run_aborted",
+      "hardening_phase_started", "hardening_phase_completed", "hardening_phase_failed", "hardening_gate_evaluated", "hardening_gate_blocked",
+      "hardening_decision_recorded", "hardening_artifact_written", "hardening_manifest_written", "hardening_llm_call_started",
+      "hardening_llm_call_completed", "hardening_llm_call_failed", "hardening_tool_call_executed", "hardening_prompt_compiled", "hardening_context_compacted"
+    ]},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "trace_id": {"type": "string", "pattern": "^tr_[A-Za-z0-9._-]+$"},
+    "span_id": {"type": ["string", "null"], "pattern": "^sp_[A-Za-z0-9._-]+$"},
+    "parent_span_id": {"type": ["string", "null"], "pattern": "^sp_[A-Za-z0-9._-]+$"},
+    "status": {"enum": ["STARTED", "PASS", "WARN", "FAIL", "BLOCKED", "SKIPPED", "ABORTED", "ERROR"]},
+    "phase": {"enum": ["question", "delete", "simplify", "verify", "codify"]},
+    "phase_index": {"type": "integer", "minimum": 0, "maximum": 4},
+    "duration_ms": {"type": "number", "minimum": 0},
+    "git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "branch": {"type": "string"},
+    "dirty_worktree": {"type": "boolean"},
+    "runner_version": {"type": "string"},
+    "config_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "input_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "loc_inspected": {"type": "integer", "minimum": 0},
+    "loc_changed": {"type": "integer", "minimum": 0},
+    "ast_nodes": {"type": "integer", "minimum": 0},
+    "rss_mb": {"type": "number", "minimum": 0},
+    "rss_delta_mb": {"type": "number"},
+    "gate_id": {"type": "string"},
+    "gate_status": {"enum": ["PASS", "WARN", "FAIL", "BLOCKED", "SKIPPED", "ERROR"]},
+    "reason_class": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string"},
+    "decision_type": {"type": "string"},
+    "decision_reason": {"type": "string"},
+    "artifact_path": {"type": "string"},
+    "artifact_type": {"type": "string"},
+    "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model": {"type": "string"},
+    "provider": {"type": "string"},
+    "reasoning_effort": {"type": "string"},
+    "temperature": {"type": "number"},
+    "max_tokens": {"type": "integer", "minimum": 0},
+    "input_tokens": {"type": "integer", "minimum": 0},
+    "output_tokens": {"type": "integer", "minimum": 0},
+    "ttft_ms": {"type": "number", "minimum": 0},
+    "decode_ms": {"type": "number", "minimum": 0},
+    "wall_ms": {"type": "number", "minimum": 0},
+    "cache_hit_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+    "prompt_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "system_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "tools_count": {"type": "integer", "minimum": 0},
+    "tool_name": {"type": "string", "minLength": 1, "maxLength": 128},
+    "tool_status": {"enum": ["PASS", "FAIL", "WARN", "ERROR", "SKIPPED", "BLOCKED"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event_name": {"enum": ["hardening_run_started", "hardening_run_completed", "hardening_run_failed", "hardening_run_aborted"]}}, "required": ["event_name"]},
+      "then": {"required": ["git_sha", "branch", "dirty_worktree", "runner_version", "config_hash", "input_hash"]}
+    },
+    {
+      "if": {"properties": {"event_name": {"enum": ["hardening_phase_started", "hardening_phase_completed", "hardening_phase_failed", "hardening_gate_evaluated", "hardening_gate_blocked", "hardening_decision_recorded"]}}, "required": ["event_name"]},
+      "then": {"required": ["span_id"], "properties": {"span_id": {"type": "string", "pattern": "^sp_[A-Za-z0-9._-]+$"}}}
+    },
+    {
+      "if": {"properties": {"event_name": {"enum": ["hardening_phase_started", "hardening_phase_completed", "hardening_phase_failed"]}}, "required": ["event_name"]},
+      "then": {"required": ["phase", "phase_index"]}
+    },
+    {
+      "if": {"properties": {"event_name": {"enum": ["hardening_phase_completed", "hardening_phase_failed"]}}, "required": ["event_name"]},
+      "then": {"required": ["duration_ms"]}
+    },
+    {
+      "if": {"properties": {"event_name": {"enum": ["hardening_gate_evaluated", "hardening_gate_blocked"]}}, "required": ["event_name"]},
+      "then": {"required": ["gate_id", "gate_status"]}
+    },
+    {
+      "if": {"properties": {"event_name": {"const": "hardening_decision_recorded"}}, "required": ["event_name"]},
+      "then": {"required": ["decision_id", "decision_type", "decision_reason"]}
+    },
+    {
+      "if": {"properties": {"event_name": {"const": "hardening_artifact_written"}}, "required": ["event_name"]},
+      "then": {"required": ["artifact_path", "artifact_type", "artifact_sha256"]}
+    },
+    {
+      "if": {"properties": {"event_name": {"const": "hardening_manifest_written"}}, "required": ["event_name"]},
+      "then": {"required": ["artifact_path", "artifact_type"]}
+    },
+    {
+      "if": {"properties": {"event_name": {"const": "hardening_tool_call_executed"}}, "required": ["event_name"]},
+      "then": {"required": ["tool_name", "tool_status", "span_id"], "properties": {"span_id": {"type": "string", "pattern": "^sp_[A-Za-z0-9._-]+$"}}}
+    }
+  ]
+}
