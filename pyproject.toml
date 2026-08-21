@@ -7,7 +7,7 @@ name = "hardening-loop"
 version = "0.1.0"
 description = "Algorithmic Code Hardening Loop v0.3 - Operational Framework & Minimal Runner"
 authors = [{ name = "Felipe Gonzalez" }]
-readme = "docs/spec_v0.1.md"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
