@@ -1,0 +1,144 @@
+{
+  "challenged_assumptions_count": 0,
+  "requirements": [
+    {
+      "id": "REQ-EXP-001",
+      "justification_valid": true,
+      "notes": "Algorithmic Code Hardening Loop v0.3 package.",
+      "source": "__init__.py",
+      "statement": "Module docstring declaration in __init__.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-002",
+      "justification_valid": true,
+      "notes": "Knowledge Admission Gate \u2014 Governs transition from empirical findings to accepted rules.",
+      "source": "admission.py",
+      "statement": "Module docstring declaration in admission.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-003",
+      "justification_valid": true,
+      "notes": "Command-line interface for Algorithmic Code Hardening Loop.",
+      "source": "cli.py",
+      "statement": "Module docstring declaration in cli.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-004",
+      "justification_valid": true,
+      "notes": "Core domain models and schema types for Algorithmic Code Hardening Loop.",
+      "source": "models.py",
+      "statement": "Module docstring declaration in models.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-005",
+      "justification_valid": true,
+      "notes": "Hardening Loop Orchestrator \u2014 Executes phases and emits deterministic evidence packages.",
+      "source": "runner.py",
+      "statement": "Module docstring declaration in runner.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-006",
+      "justification_valid": true,
+      "notes": "Deterministic fail-closed JSON Schema validation for all hardening artifacts.",
+      "source": "schema_validator.py",
+      "statement": "Module docstring declaration in schema_validator.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-007",
+      "justification_valid": true,
+      "notes": "State machine and lifecycle governance for WorkUnit and Knowledge.",
+      "source": "states.py",
+      "statement": "Module docstring declaration in states.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-008",
+      "justification_valid": true,
+      "notes": "Phase modules implementing the 5-step hardening loop.",
+      "source": "__init__.py",
+      "statement": "Module docstring declaration in __init__.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-009",
+      "justification_valid": true,
+      "notes": "Base phase interface with cryptographic envelope creation and schema validation.",
+      "source": "base.py",
+      "statement": "Module docstring declaration in base.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-010",
+      "justification_valid": true,
+      "notes": "Phase 5: CODIFY VALIDATED LEARNING \u2014 Structure candidate rules for admission gate review.",
+      "source": "codify.py",
+      "statement": "Module docstring declaration in codify.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-011",
+      "justification_valid": true,
+      "notes": "Phase 2: DELETE HARNESS \u2014 Identify unnecessary complexity, excessive capabilities, and dead harnesses.",
+      "source": "delete.py",
+      "statement": "Module docstring declaration in delete.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-012",
+      "justification_valid": true,
+      "notes": "Phase 1: QUESTION CONTEXT \u2014 Audit explicit vs inferred requirements and challenge premises.",
+      "source": "question.py",
+      "statement": "Module docstring declaration in question.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-013",
+      "justification_valid": true,
+      "notes": "Phase 3: SIMPLIFY INTERFACES \u2014 Validate and simplify contracts without breaking external interfaces.",
+      "source": "simplify.py",
+      "statement": "Module docstring declaration in simplify.py",
+      "type": "explicit"
+    },
+    {
+      "id": "REQ-EXP-014",
+      "justification_valid": true,
+      "notes": "Phase 4: VERIFY FASTER \u2014 Execute verification gates and collect latency/correctness benchmarks.",
+      "source": "verify.py",
+      "statement": "Module docstring declaration in verify.py",
+      "type": "explicit"
+    },
+    {
+      "audit_finding": "Strict whitelist enforced",
+      "id": "REQ-SEC-015",
+      "justification_valid": true,
+      "source": "execute_function",
+      "statement": "Subprocess execution must strictly enforce command whitelist and sanitize input.",
+      "type": "security_constraint"
+    },
+    {
+      "audit_finding": "Boundary verification present",
+      "id": "REQ-SEC-016",
+      "justification_valid": true,
+      "source": "file_reader",
+      "statement": "File reading must be restricted to workspace boundary.",
+      "type": "security_constraint"
+    },
+    {
+      "audit_finding": "Provenace metadata present in envelopes",
+      "id": "REQ-SEC-017",
+      "justification_valid": true,
+      "source": "evidence_provenance",
+      "statement": "All evidence envelopes must declare method version and host environment hash.",
+      "type": "security_constraint"
+    }
+  ],
+  "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+  "total_files_audited": 14,
+  "total_requirements_audited": 17
+}

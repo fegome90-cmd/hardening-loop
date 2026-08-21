@@ -64,15 +64,7 @@ def load_schema(schema_name: str) -> dict[str, Any]:
 
 
 def validate_payload(data: dict[str, Any], schema_name: str) -> None:
-    """Validates a payload against a normative JSON Schema in strict fail-closed mode.
-
-    Args:
-        data: The dictionary payload to validate.
-        schema_name: The base name of the schema (e.g. 'evidence_envelope', 'work_unit', 'knowledge_candidate').
-
-    Raises:
-        SchemaValidationError: If the payload does not conform to the schema.
-    """
+    """Validates a payload against a normative JSON Schema in strict fail-closed mode."""
     schema = load_schema(schema_name)
     validator = Draft7Validator(schema, format_checker=FormatChecker())
     errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
@@ -83,3 +75,10 @@ def validate_payload(data: dict[str, Any], schema_name: str) -> None:
             path_str = ".".join(str(p) for p in err.path) if err.path else "root"
             error_msgs.append(f"at '{path_str}': {err.message}")
         raise SchemaValidationError(schema_name=schema_name, errors=error_msgs, payload=data)
+
+
+class SchemaValidator:
+    """Convenience wrapper for schema validation."""
+    @staticmethod
+    def validate_or_raise(schema_name: str, data: dict[str, Any]) -> None:
+        validate_payload(data, schema_name)

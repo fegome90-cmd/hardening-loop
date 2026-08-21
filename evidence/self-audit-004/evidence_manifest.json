@@ -1,0 +1,999 @@
+{
+  "canonical_manifest_digest": "76b2fd1b11be26f5071cd9d143b37af0b89a93e17192a736f532edfb4127a03a",
+  "envelopes": [
+    {
+      "canonical_evidence": {
+        "artifact_payload": {
+          "challenged_assumptions_count": 0,
+          "requirements": [
+            {
+              "id": "REQ-EXP-001",
+              "justification_valid": true,
+              "notes": "Algorithmic Code Hardening Loop v0.3 package.",
+              "source": "__init__.py",
+              "statement": "Module docstring declaration in __init__.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-002",
+              "justification_valid": true,
+              "notes": "Knowledge Admission Gate \u2014 Governs transition from empirical findings to accepted rules.",
+              "source": "admission.py",
+              "statement": "Module docstring declaration in admission.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-003",
+              "justification_valid": true,
+              "notes": "Command-line interface for Algorithmic Code Hardening Loop.",
+              "source": "cli.py",
+              "statement": "Module docstring declaration in cli.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-004",
+              "justification_valid": true,
+              "notes": "Core domain models and schema types for Algorithmic Code Hardening Loop.",
+              "source": "models.py",
+              "statement": "Module docstring declaration in models.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-005",
+              "justification_valid": true,
+              "notes": "Hardening Loop Orchestrator \u2014 Executes phases and emits deterministic evidence packages.",
+              "source": "runner.py",
+              "statement": "Module docstring declaration in runner.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-006",
+              "justification_valid": true,
+              "notes": "Deterministic fail-closed JSON Schema validation for all hardening artifacts.",
+              "source": "schema_validator.py",
+              "statement": "Module docstring declaration in schema_validator.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-007",
+              "justification_valid": true,
+              "notes": "State machine and lifecycle governance for WorkUnit and Knowledge.",
+              "source": "states.py",
+              "statement": "Module docstring declaration in states.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-008",
+              "justification_valid": true,
+              "notes": "Phase modules implementing the 5-step hardening loop.",
+              "source": "__init__.py",
+              "statement": "Module docstring declaration in __init__.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-009",
+              "justification_valid": true,
+              "notes": "Base phase interface with cryptographic envelope creation and schema validation.",
+              "source": "base.py",
+              "statement": "Module docstring declaration in base.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-010",
+              "justification_valid": true,
+              "notes": "Phase 5: CODIFY VALIDATED LEARNING \u2014 Structure candidate rules for admission gate review.",
+              "source": "codify.py",
+              "statement": "Module docstring declaration in codify.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-011",
+              "justification_valid": true,
+              "notes": "Phase 2: DELETE HARNESS \u2014 Identify unnecessary complexity, excessive capabilities, and dead harnesses.",
+              "source": "delete.py",
+              "statement": "Module docstring declaration in delete.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-012",
+              "justification_valid": true,
+              "notes": "Phase 1: QUESTION CONTEXT \u2014 Audit explicit vs inferred requirements and challenge premises.",
+              "source": "question.py",
+              "statement": "Module docstring declaration in question.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-013",
+              "justification_valid": true,
+              "notes": "Phase 3: SIMPLIFY INTERFACES \u2014 Validate and simplify contracts without breaking external interfaces.",
+              "source": "simplify.py",
+              "statement": "Module docstring declaration in simplify.py",
+              "type": "explicit"
+            },
+            {
+              "id": "REQ-EXP-014",
+              "justification_valid": true,
+              "notes": "Phase 4: VERIFY FASTER \u2014 Execute verification gates and collect latency/correctness benchmarks.",
+              "source": "verify.py",
+              "statement": "Module docstring declaration in verify.py",
+              "type": "explicit"
+            },
+            {
+              "audit_finding": "Strict whitelist enforced",
+              "id": "REQ-SEC-015",
+              "justification_valid": true,
+              "source": "execute_function",
+              "statement": "Subprocess execution must strictly enforce command whitelist and sanitize input.",
+              "type": "security_constraint"
+            },
+            {
+              "audit_finding": "Boundary verification present",
+              "id": "REQ-SEC-016",
+              "justification_valid": true,
+              "source": "file_reader",
+              "statement": "File reading must be restricted to workspace boundary.",
+              "type": "security_constraint"
+            },
+            {
+              "audit_finding": "Provenace metadata present in envelopes",
+              "id": "REQ-SEC-017",
+              "justification_valid": true,
+              "source": "evidence_provenance",
+              "statement": "All evidence envelopes must declare method version and host environment hash.",
+              "type": "security_constraint"
+            }
+          ],
+          "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+          "total_files_audited": 14,
+          "total_requirements_audited": 17
+        },
+        "evidence_id": "evi-17f07ceb35b0",
+        "execution_context_hash": "afc9826c9e8bb259069fe30b5b55c3927eaf97849c2eb1893be8811aecb18eb8",
+        "input_hash": "12605c78d1da4931336705b08a05380397d3d4257e0a523bf7d3a674df5d3a8c",
+        "method_version": "v0.3",
+        "output_hash": "17f07ceb35b0f734b9b4772c6fdb5dacb338c4c837129d8385d3900c9408fc47",
+        "phase": "question",
+        "schema_version": "v0.1-beta"
+      },
+      "runtime_receipt": {
+        "checks": [
+          "Parsed 14 source file(s) for requirements extraction",
+          "Audited 17 requirements across 14 file(s)"
+        ],
+        "duration_ms": 1.494,
+        "error": null,
+        "producer": "hardening-loop:question:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T12:20:11.787974+00:00"
+      }
+    },
+    {
+      "canonical_evidence": {
+        "artifact_payload": {
+          "deletion_candidates": [
+            {
+              "action": "REPLACE_WITH_STRUCTURED_RUNNER",
+              "candidate_id": "DEL-001",
+              "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
+              "severity": "HIGH",
+              "target": "unconstrained_shell_harness"
+            },
+            {
+              "action": "DELETE_AND_PARAMETERIZE",
+              "candidate_id": "DEL-002",
+              "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
+              "severity": "MEDIUM",
+              "target": "hardcoded_cwd_string"
+            },
+            {
+              "action": "DELETE_BYPASS_METHOD",
+              "candidate_id": "DEL-005",
+              "rationale": "Knowledge Admission Gate prohibits auto-promotion to canonical without reviewer identity.",
+              "severity": "CRITICAL",
+              "target": "auto_promotion_bypass"
+            }
+          ],
+          "deletion_candidates_count": 3,
+          "diff_patch": "",
+          "rollback_reference": {
+            "original_target_hash": "683ae673e993210fc3c9960d1876d575fd2015c1d65e598c5ee070b734796e8e",
+            "target_path": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop"
+          },
+          "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+          "total_files_scanned": 14
+        },
+        "evidence_id": "evi-65dcc07699a8",
+        "execution_context_hash": "afc9826c9e8bb259069fe30b5b55c3927eaf97849c2eb1893be8811aecb18eb8",
+        "input_hash": "314fe1d84e8cdfa389d8cb9a52910068c348c670802a2a8b173439c3eb58a2fc",
+        "method_version": "v0.3",
+        "output_hash": "65dcc07699a826b93a7ab820aecc2431a73f81ce807d39eb912bffcd8699ec77",
+        "phase": "delete",
+        "schema_version": "v0.1-beta"
+      },
+      "runtime_receipt": {
+        "checks": [
+          "Scanned 14 source file(s) for deletion candidates and over-privileged harnesses",
+          "Identified 3 deletion candidates",
+          "Generated deterministic rollback reference"
+        ],
+        "duration_ms": 1.173,
+        "error": null,
+        "producer": "hardening-loop:delete:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T12:20:11.798680+00:00"
+      }
+    },
+    {
+      "canonical_evidence": {
+        "artifact_payload": {
+          "contract_analysis": [
+            {
+              "breaking_change": false,
+              "interface": "base.py::execute()",
+              "observation": "Audited function contract.",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "base.py::run()",
+              "observation": "Returns standard EvidenceEnvelope.",
+              "status": "CANONICAL"
+            },
+            {
+              "breaking_change": false,
+              "interface": "codify.py::execute()",
+              "observation": "Audited function contract.",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "delete.py::execute()",
+              "observation": "Audited function contract.",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "question.py::execute()",
+              "observation": "Audited function contract.",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "simplify.py::execute()",
+              "observation": "Audited function contract.",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "verify.py::execute()",
+              "observation": "Audited function contract.",
+              "status": "VALIDATED"
+            }
+          ],
+          "functions": [
+            {
+              "args": [
+                "candidate_id",
+                "observation",
+                "category",
+                "severity",
+                "finding_description",
+                "target_lines",
+                "rule_id",
+                "rule_title",
+                "enforcement_mechanism",
+                "rationale",
+                "evidence_references",
+                "suggested_fix",
+                "created_at"
+              ],
+              "has_docstring": false,
+              "line": 26,
+              "module": "admission.py",
+              "name": "create_candidate"
+            },
+            {
+              "args": [
+                "candidate",
+                "decision",
+                "reviewer",
+                "notes"
+              ],
+              "has_docstring": false,
+              "line": 67,
+              "module": "admission.py",
+              "name": "review_candidate"
+            },
+            {
+              "args": [
+                "candidate"
+              ],
+              "has_docstring": false,
+              "line": 88,
+              "module": "admission.py",
+              "name": "export_candidate_yaml"
+            },
+            {
+              "args": [
+                "yaml_content"
+              ],
+              "has_docstring": false,
+              "line": 93,
+              "module": "admission.py",
+              "name": "load_candidate_yaml"
+            },
+            {
+              "args": [],
+              "has_docstring": false,
+              "line": 12,
+              "module": "cli.py",
+              "name": "create_parser"
+            },
+            {
+              "args": [
+                "args"
+              ],
+              "has_docstring": false,
+              "line": 42,
+              "module": "cli.py",
+              "name": "handle_run"
+            },
+            {
+              "args": [
+                "args"
+              ],
+              "has_docstring": false,
+              "line": 72,
+              "module": "cli.py",
+              "name": "handle_review"
+            },
+            {
+              "args": [
+                "argv"
+              ],
+              "has_docstring": false,
+              "line": 109,
+              "module": "cli.py",
+              "name": "main"
+            },
+            {
+              "args": [],
+              "has_docstring": false,
+              "line": 15,
+              "module": "models.py",
+              "name": "utc_now_iso"
+            },
+            {
+              "args": [
+                "text"
+              ],
+              "has_docstring": false,
+              "line": 19,
+              "module": "models.py",
+              "name": "sha256_text"
+            },
+            {
+              "args": [
+                "data"
+              ],
+              "has_docstring": false,
+              "line": 23,
+              "module": "models.py",
+              "name": "sha256_dict"
+            },
+            {
+              "args": [
+                "cwd"
+              ],
+              "has_docstring": true,
+              "line": 28,
+              "module": "models.py",
+              "name": "get_git_commit_hash"
+            },
+            {
+              "args": [
+                "base_dir"
+              ],
+              "has_docstring": true,
+              "line": 45,
+              "module": "models.py",
+              "name": "compute_lockfile_hash"
+            },
+            {
+              "args": [
+                "base_dir",
+                "schema_version"
+              ],
+              "has_docstring": true,
+              "line": 56,
+              "module": "models.py",
+              "name": "compute_execution_context_hash"
+            },
+            {
+              "args": [
+                "target_path"
+              ],
+              "has_docstring": true,
+              "line": 69,
+              "module": "models.py",
+              "name": "compute_canonical_directory_digest"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 163,
+              "module": "models.py",
+              "name": "to_dict"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 180,
+              "module": "models.py",
+              "name": "to_dict"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 203,
+              "module": "models.py",
+              "name": "to_dict"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 217,
+              "module": "models.py",
+              "name": "validate_schema"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 234,
+              "module": "models.py",
+              "name": "to_dict"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 246,
+              "module": "models.py",
+              "name": "canonical_hash"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 260,
+              "module": "models.py",
+              "name": "to_dict"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 282,
+              "module": "models.py",
+              "name": "to_dict"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 289,
+              "module": "models.py",
+              "name": "evidence_id"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 293,
+              "module": "models.py",
+              "name": "phase"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 297,
+              "module": "models.py",
+              "name": "input_hash"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 301,
+              "module": "models.py",
+              "name": "output_hash"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 305,
+              "module": "models.py",
+              "name": "status"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 309,
+              "module": "models.py",
+              "name": "method_version"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 313,
+              "module": "models.py",
+              "name": "schema_version"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 317,
+              "module": "models.py",
+              "name": "execution_context_hash"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 321,
+              "module": "models.py",
+              "name": "artifact"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 336,
+              "module": "models.py",
+              "name": "to_dict"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 348,
+              "module": "models.py",
+              "name": "validate_schema"
+            },
+            {
+              "args": [
+                "self",
+                "target_path",
+                "output_dir"
+              ],
+              "has_docstring": false,
+              "line": 44,
+              "module": "runner.py",
+              "name": "__init__"
+            },
+            {
+              "args": [
+                "self",
+                "phase_name",
+                "context"
+              ],
+              "has_docstring": false,
+              "line": 64,
+              "module": "runner.py",
+              "name": "run_phase"
+            },
+            {
+              "args": [
+                "self",
+                "phase_name",
+                "envelope"
+              ],
+              "has_docstring": false,
+              "line": 94,
+              "module": "runner.py",
+              "name": "_write_phase_artifacts"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 123,
+              "module": "runner.py",
+              "name": "run_all"
+            },
+            {
+              "args": [],
+              "has_docstring": true,
+              "line": 26,
+              "module": "schema_validator.py",
+              "name": "get_schemas_dir"
+            },
+            {
+              "args": [
+                "schema_name"
+              ],
+              "has_docstring": true,
+              "line": 42,
+              "module": "schema_validator.py",
+              "name": "load_schema"
+            },
+            {
+              "args": [
+                "data",
+                "schema_name"
+              ],
+              "has_docstring": true,
+              "line": 66,
+              "module": "schema_validator.py",
+              "name": "validate_payload"
+            },
+            {
+              "args": [
+                "self",
+                "schema_name",
+                "errors",
+                "payload"
+              ],
+              "has_docstring": false,
+              "line": 15,
+              "module": "schema_validator.py",
+              "name": "__init__"
+            },
+            {
+              "args": [
+                "schema_name",
+                "data"
+              ],
+              "has_docstring": false,
+              "line": 83,
+              "module": "schema_validator.py",
+              "name": "validate_or_raise"
+            },
+            {
+              "args": [
+                "current",
+                "target"
+              ],
+              "has_docstring": false,
+              "line": 28,
+              "module": "states.py",
+              "name": "can_transition"
+            },
+            {
+              "args": [
+                "work_unit",
+                "target",
+                "reason"
+              ],
+              "has_docstring": false,
+              "line": 32,
+              "module": "states.py",
+              "name": "transition"
+            },
+            {
+              "args": [
+                "self",
+                "name",
+                "version",
+                "method_version",
+                "schema_version"
+              ],
+              "has_docstring": false,
+              "line": 24,
+              "module": "base.py",
+              "name": "__init__"
+            },
+            {
+              "args": [
+                "self",
+                "target_path",
+                "context"
+              ],
+              "has_docstring": false,
+              "line": 30,
+              "module": "base.py",
+              "name": "compute_input_hash"
+            },
+            {
+              "args": [
+                "self",
+                "target_path",
+                "context"
+              ],
+              "has_docstring": true,
+              "line": 40,
+              "module": "base.py",
+              "name": "execute"
+            },
+            {
+              "args": [
+                "self",
+                "target_path",
+                "context",
+                "output_dir"
+              ],
+              "has_docstring": false,
+              "line": 48,
+              "module": "base.py",
+              "name": "run"
+            },
+            {
+              "args": [
+                "self"
+              ],
+              "has_docstring": false,
+              "line": 21,
+              "module": "codify.py",
+              "name": "__init__"
+            }
+          ],
+          "interface_breaking_changes_detected": 0,
+          "interfaces_audited": 63,
+          "simplification_summary": "All audited functions preserve external contracts and return types.",
+          "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+          "total_files_audited": 14
+        },
+        "evidence_id": "evi-bb16a0ddf423",
+        "execution_context_hash": "afc9826c9e8bb259069fe30b5b55c3927eaf97849c2eb1893be8811aecb18eb8",
+        "input_hash": "75c36ad4f1f734186f26c3bdf9b5f3c1c22a31f24e664949c13eb49d31f5f673",
+        "method_version": "v0.3",
+        "output_hash": "bb16a0ddf42310cd0c7e2b3c2a636abfa80c852a513aeb6121ee99909d099d51",
+        "phase": "simplify",
+        "schema_version": "v0.1-beta"
+      },
+      "runtime_receipt": {
+        "checks": [
+          "Parsed 63 function definitions across 14 file(s)",
+          "Audited 63 functions without introducing interface breaking changes"
+        ],
+        "duration_ms": 9.111,
+        "error": null,
+        "producer": "hardening-loop:simplify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T12:20:11.815889+00:00"
+      }
+    },
+    {
+      "canonical_evidence": {
+        "artifact_payload": {
+          "benchmark": {
+            "loop_target_threshold_ms": 100.0,
+            "meets_fast_feedback_sla": true
+          },
+          "runtime_evidence": {
+            "deterministic_execution": true,
+            "environment": "local_ci",
+            "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+            "total_files": 14,
+            "total_lines_of_code": 1622
+          },
+          "test_results": {
+            "ast_validation": {
+              "errors": [],
+              "passed": true
+            },
+            "failed_checks": 0,
+            "passed_checks": 4,
+            "safety_checks": [
+              {
+                "check": "envelope_provenance_fields",
+                "details": "Checking if EvidenceEnvelope includes method_version and environment_hash.",
+                "passed": true,
+                "severity_if_failed": "MEDIUM"
+              },
+              {
+                "check": "knowledge_admission_gate_invariants",
+                "details": "Checking if admission gate forbids auto-canonical promotion.",
+                "passed": true,
+                "severity_if_failed": "CRITICAL"
+              },
+              {
+                "check": "state_machine_acyclic_transitions",
+                "details": "Checking if valid state lifecycle transitions are defined.",
+                "passed": true,
+                "severity_if_failed": "HIGH"
+              }
+            ],
+            "total_checks": 4,
+            "total_files_tested": 14
+          }
+        },
+        "evidence_id": "evi-e787b0a4dc04",
+        "execution_context_hash": "afc9826c9e8bb259069fe30b5b55c3927eaf97849c2eb1893be8811aecb18eb8",
+        "input_hash": "4df67a2158d17b77f5d11d0e3b58e86b89d041343b059fe637946f3958f6bf97",
+        "method_version": "v0.3",
+        "output_hash": "e787b0a4dc04e7c1c17c0512ff10d2596376fb3d4db2edebcbf2aaacae65272c",
+        "phase": "verify",
+        "schema_version": "v0.1-beta"
+      },
+      "runtime_receipt": {
+        "checks": [
+          "AST compilation passed for 14 source file(s)",
+          "Completed verification of 14 file(s) in 4.425ms"
+        ],
+        "duration_ms": 5.258,
+        "error": null,
+        "producer": "hardening-loop:verify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T12:20:11.830557+00:00"
+      }
+    },
+    {
+      "canonical_evidence": {
+        "artifact_payload": {
+          "admission_record": {
+            "admission_status": "PENDING_REVIEW",
+            "gate_policy": "NO_AUTO_CANONICAL",
+            "message": "Candidates must be reviewed using 'hardening-loop review <file> --admit' before becoming canonical knowledge."
+          },
+          "candidates": [
+            {
+              "admission_status": "PENDING_REVIEW",
+              "candidate_id": "kc-671c80e2a95d",
+              "created_at": "1970-01-01T00:00:00+00:00",
+              "evidence_references": [
+                "evi-17f07ceb35b0",
+                "evi-65dcc07699a8",
+                "evi-bb16a0ddf423",
+                "evi-e787b0a4dc04"
+              ],
+              "finding": {
+                "category": "PROVENANCE_GAP",
+                "description": "Without method_version and environment_hash, evidence artifacts cannot be cross-validated across different CI or OS environments.",
+                "severity": "HIGH",
+                "target_lines": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "observation": "Evidence envelopes must track both method_version and host environment_hash for hermetic reproducibility.",
+              "review_notes": null,
+              "reviewed_at": null,
+              "reviewer": null,
+              "rule_proposal": {
+                "enforcement_mechanism": "SCHEMA_GUARD",
+                "rationale": "Hermetic reproducibility requires capturing the exact runtime environment digest and framework version.",
+                "rule_id": "RULE-EVIDENCE-001",
+                "suggested_fix": "Include method_version and environment_hash as required schema properties in evidence_envelope.schema.json.",
+                "title": "Mandatory Method & Environment Provenance in Evidence Envelopes"
+              }
+            },
+            {
+              "admission_status": "PENDING_REVIEW",
+              "candidate_id": "kc-967a4605707f",
+              "created_at": "1970-01-01T00:00:00+00:00",
+              "evidence_references": [
+                "evi-17f07ceb35b0",
+                "evi-65dcc07699a8",
+                "evi-bb16a0ddf423",
+                "evi-e787b0a4dc04"
+              ],
+              "finding": {
+                "category": "SECURITY",
+                "description": "An unauthenticated or automated reviewer could pollute canonical knowledge.",
+                "severity": "CRITICAL",
+                "target_lines": [
+                  40,
+                  41,
+                  42
+                ]
+              },
+              "observation": "Knowledge Admission Gate must strictly forbid transitions to ADMITTED without non-empty reviewer identity.",
+              "review_notes": null,
+              "reviewed_at": null,
+              "reviewer": null,
+              "rule_proposal": {
+                "enforcement_mechanism": "CONTRACT_VALIDATOR",
+                "rationale": "The knowledge base remains trustworthy only if all promoted rules have verifiable human/curator provenance.",
+                "rule_id": "RULE-GATE-001",
+                "suggested_fix": "Enforce reviewer.strip() check in KnowledgeAdmissionGate.review_candidate.",
+                "title": "Mandatory Human Reviewer Identity for Knowledge Promotion"
+              }
+            }
+          ],
+          "candidates_count": 2,
+          "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop"
+        },
+        "evidence_id": "evi-89de5c63bf36",
+        "execution_context_hash": "afc9826c9e8bb259069fe30b5b55c3927eaf97849c2eb1893be8811aecb18eb8",
+        "input_hash": "372538e11b193436caf0b8ae8674eb9661f84de41221bfd8253beba50f297847",
+        "method_version": "v0.3",
+        "output_hash": "89de5c63bf36bb02a9dce53b02cf112f76fdfd2dc1a676d988cdbc21d771c511",
+        "phase": "codify",
+        "schema_version": "v0.1-beta"
+      },
+      "runtime_receipt": {
+        "checks": [
+          "Formulated 2 knowledge candidate(s) for admission review",
+          "Strict non-canonical invariant enforced: All candidates set to PENDING_REVIEW"
+        ],
+        "duration_ms": 1.405,
+        "error": null,
+        "producer": "hardening-loop:codify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T12:20:11.839788+00:00"
+      }
+    }
+  ],
+  "runtime_telemetry": {
+    "completed_at": "2026-08-21T12:20:11.841182+00:00",
+    "final_status": "PASS"
+  },
+  "work_unit": {
+    "created_at": "2026-08-21T12:20:11.778005+00:00",
+    "metadata": {
+      "execution_context_hash": "afc9826c9e8bb259069fe30b5b55c3927eaf97849c2eb1893be8811aecb18eb8",
+      "method_version": "v0.3",
+      "runner_version": "0.1.0-beta",
+      "transition_history": [
+        {
+          "from": "AUDITING",
+          "reason": "Starting hardening run",
+          "timestamp": "2026-08-21T12:20:11.778226+00:00",
+          "to": "AUDITING"
+        },
+        {
+          "from": "PATCH_PROPOSED",
+          "reason": "Audit and simplification complete",
+          "timestamp": "2026-08-21T12:20:11.816575+00:00",
+          "to": "PATCH_PROPOSED"
+        },
+        {
+          "from": "VERIFIED",
+          "reason": "Verification tests passed",
+          "timestamp": "2026-08-21T12:20:11.831105+00:00",
+          "to": "VERIFIED"
+        },
+        {
+          "from": "KNOWLEDGE_CANDIDATE",
+          "reason": "Knowledge candidates formulated",
+          "timestamp": "2026-08-21T12:20:11.841044+00:00",
+          "to": "KNOWLEDGE_CANDIDATE"
+        }
+      ]
+    },
+    "phases_executed": [
+      "question",
+      "delete",
+      "simplify",
+      "verify",
+      "codify"
+    ],
+    "state": "KNOWLEDGE_CANDIDATE",
+    "target_hash": "683ae673e993210fc3c9960d1876d575fd2015c1d65e598c5ee070b734796e8e",
+    "target_path": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+    "updated_at": "2026-08-21T12:20:11.841044+00:00",
+    "work_unit_id": "wu-683ae673e993"
+  }
+}

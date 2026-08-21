@@ -1,0 +1,61 @@
+- candidate_id: kc-671c80e2a95d
+  observation: Evidence envelopes must track both method_version and host environment_hash
+    for hermetic reproducibility.
+  finding:
+    category: PROVENANCE_GAP
+    severity: HIGH
+    description: Without method_version and environment_hash, evidence artifacts cannot
+      be cross-validated across different CI or OS environments.
+    target_lines:
+    - 1
+    - 2
+    - 3
+  rule_proposal:
+    rule_id: RULE-EVIDENCE-001
+    title: Mandatory Method & Environment Provenance in Evidence Envelopes
+    enforcement_mechanism: SCHEMA_GUARD
+    rationale: Hermetic reproducibility requires capturing the exact runtime environment
+      digest and framework version.
+    suggested_fix: Include method_version and environment_hash as required schema
+      properties in evidence_envelope.schema.json.
+  evidence_references:
+  - evi-17f07ceb35b0
+  - evi-65dcc07699a8
+  - evi-bb16a0ddf423
+  - evi-e787b0a4dc04
+  admission_status: ACCEPTED
+  reviewer: felipe-senior-architect
+  reviewed_at: '2026-08-21T12:22:12.223352+00:00'
+  review_notes: 'DOGFOODING-002: Aprobada separacion canonica RULE-EVIDENCE-001 y
+    asercion de revisor RULE-GATE-001'
+  created_at: '1970-01-01T00:00:00+00:00'
+- candidate_id: kc-967a4605707f
+  observation: Knowledge Admission Gate must strictly forbid transitions to ADMITTED
+    without non-empty reviewer identity.
+  finding:
+    category: SECURITY
+    severity: CRITICAL
+    description: An unauthenticated or automated reviewer could pollute canonical
+      knowledge.
+    target_lines:
+    - 40
+    - 41
+    - 42
+  rule_proposal:
+    rule_id: RULE-GATE-001
+    title: Mandatory Human Reviewer Identity for Knowledge Promotion
+    enforcement_mechanism: CONTRACT_VALIDATOR
+    rationale: The knowledge base remains trustworthy only if all promoted rules have
+      verifiable human/curator provenance.
+    suggested_fix: Enforce reviewer.strip() check in KnowledgeAdmissionGate.review_candidate.
+  evidence_references:
+  - evi-17f07ceb35b0
+  - evi-65dcc07699a8
+  - evi-bb16a0ddf423
+  - evi-e787b0a4dc04
+  admission_status: ACCEPTED
+  reviewer: felipe-senior-architect
+  reviewed_at: '2026-08-21T12:22:12.224661+00:00'
+  review_notes: 'DOGFOODING-002: Aprobada separacion canonica RULE-EVIDENCE-001 y
+    asercion de revisor RULE-GATE-001'
+  created_at: '1970-01-01T00:00:00+00:00'

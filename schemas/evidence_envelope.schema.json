@@ -1,82 +1,93 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "EvidenceEnvelope",
-  "description": "Immutable envelope recording deterministic execution evidence for a hardening phase",
+  "description": "Structured envelope separating deterministic Canonical Evidence from non-deterministic Runtime Receipts",
   "type": "object",
   "required": [
-    "evidence_id",
-    "producer",
-    "timestamp",
-    "phase",
-    "input_hash",
-    "output_hash",
-    "artifact",
-    "verification",
-    "status",
-    "method_version",
-    "environment_hash"
+    "canonical_evidence",
+    "runtime_receipt"
   ],
   "properties": {
-    "evidence_id": {
-      "type": "string",
-      "pattern": "^evi-[a-f0-9]{8,16}$"
-    },
-    "producer": {
-      "type": "string",
-      "description": "Tool/module name and version generating the evidence"
-    },
-    "timestamp": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "phase": {
-      "type": "string",
-      "enum": ["question", "delete", "simplify", "verify", "codify"]
-    },
-    "input_hash": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$",
-      "description": "SHA-256 hash of all input files and parameters"
-    },
-    "output_hash": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$",
-      "description": "SHA-256 hash of the generated artifact content"
-    },
-    "artifact": {
+    "canonical_evidence": {
       "type": "object",
-      "required": ["path", "artifact_type", "payload"],
+      "required": [
+        "evidence_id",
+        "phase",
+        "input_hash",
+        "output_hash",
+        "method_version",
+        "schema_version",
+        "execution_context_hash",
+        "artifact_payload"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "artifact_type": { "type": "string" },
-        "payload": { "type": "object" }
-      }
+        "evidence_id": {
+          "type": "string",
+          "pattern": "^evi-[a-f0-9]{8,16}$"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["question", "delete", "simplify", "verify", "codify"]
+        },
+        "input_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of target source code and parameters"
+        },
+        "output_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of artifact payload"
+        },
+        "method_version": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string"
+        },
+        "execution_context_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "artifact_payload": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     },
-    "verification": {
+    "runtime_receipt": {
       "type": "object",
-      "required": ["passed", "checks", "duration_ms"],
+      "required": [
+        "producer",
+        "timestamp",
+        "duration_ms",
+        "checks",
+        "status"
+      ],
       "properties": {
-        "passed": { "type": "boolean" },
+        "producer": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number"
+        },
         "checks": {
           "type": "array",
           "items": { "type": "string" }
         },
-        "duration_ms": { "type": "number" },
-        "error": { "type": ["string", "null"] }
-      }
-    },
-    "status": {
-      "type": "string",
-      "enum": ["PASS", "FAIL", "BLOCKED", "WARN"]
-    },
-    "method_version": {
-      "type": "string",
-      "description": "Methodology version identifier (e.g. v0.3)"
-    },
-    "environment_hash": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$",
-      "description": "SHA-256 hash of runtime host environment"
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "BLOCKED", "WARN"]
+        },
+        "error": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

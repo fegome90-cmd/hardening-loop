@@ -1,0 +1,538 @@
+{
+  "contract_analysis": [
+    {
+      "breaking_change": false,
+      "interface": "base.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "base.py::run()",
+      "observation": "Returns standard EvidenceEnvelope.",
+      "status": "CANONICAL"
+    },
+    {
+      "breaking_change": false,
+      "interface": "codify.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "delete.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "question.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "simplify.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "verify.py::execute()",
+      "observation": "Audited function contract.",
+      "status": "VALIDATED"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "candidate_id",
+        "observation",
+        "category",
+        "severity",
+        "finding_description",
+        "target_lines",
+        "rule_id",
+        "rule_title",
+        "enforcement_mechanism",
+        "rationale",
+        "evidence_references",
+        "suggested_fix",
+        "created_at"
+      ],
+      "has_docstring": false,
+      "line": 26,
+      "module": "admission.py",
+      "name": "create_candidate"
+    },
+    {
+      "args": [
+        "candidate",
+        "decision",
+        "reviewer",
+        "notes"
+      ],
+      "has_docstring": false,
+      "line": 67,
+      "module": "admission.py",
+      "name": "review_candidate"
+    },
+    {
+      "args": [
+        "candidate"
+      ],
+      "has_docstring": false,
+      "line": 88,
+      "module": "admission.py",
+      "name": "export_candidate_yaml"
+    },
+    {
+      "args": [
+        "yaml_content"
+      ],
+      "has_docstring": false,
+      "line": 93,
+      "module": "admission.py",
+      "name": "load_candidate_yaml"
+    },
+    {
+      "args": [],
+      "has_docstring": false,
+      "line": 12,
+      "module": "cli.py",
+      "name": "create_parser"
+    },
+    {
+      "args": [
+        "args"
+      ],
+      "has_docstring": false,
+      "line": 42,
+      "module": "cli.py",
+      "name": "handle_run"
+    },
+    {
+      "args": [
+        "args"
+      ],
+      "has_docstring": false,
+      "line": 72,
+      "module": "cli.py",
+      "name": "handle_review"
+    },
+    {
+      "args": [
+        "argv"
+      ],
+      "has_docstring": false,
+      "line": 109,
+      "module": "cli.py",
+      "name": "main"
+    },
+    {
+      "args": [],
+      "has_docstring": false,
+      "line": 15,
+      "module": "models.py",
+      "name": "utc_now_iso"
+    },
+    {
+      "args": [
+        "text"
+      ],
+      "has_docstring": false,
+      "line": 19,
+      "module": "models.py",
+      "name": "sha256_text"
+    },
+    {
+      "args": [
+        "data"
+      ],
+      "has_docstring": false,
+      "line": 23,
+      "module": "models.py",
+      "name": "sha256_dict"
+    },
+    {
+      "args": [
+        "cwd"
+      ],
+      "has_docstring": true,
+      "line": 28,
+      "module": "models.py",
+      "name": "get_git_commit_hash"
+    },
+    {
+      "args": [
+        "base_dir"
+      ],
+      "has_docstring": true,
+      "line": 45,
+      "module": "models.py",
+      "name": "compute_lockfile_hash"
+    },
+    {
+      "args": [
+        "base_dir",
+        "schema_version"
+      ],
+      "has_docstring": true,
+      "line": 56,
+      "module": "models.py",
+      "name": "compute_execution_context_hash"
+    },
+    {
+      "args": [
+        "target_path"
+      ],
+      "has_docstring": true,
+      "line": 69,
+      "module": "models.py",
+      "name": "compute_canonical_directory_digest"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 163,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 180,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 203,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 217,
+      "module": "models.py",
+      "name": "validate_schema"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 234,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 246,
+      "module": "models.py",
+      "name": "canonical_hash"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 260,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 282,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 289,
+      "module": "models.py",
+      "name": "evidence_id"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 293,
+      "module": "models.py",
+      "name": "phase"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 297,
+      "module": "models.py",
+      "name": "input_hash"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 301,
+      "module": "models.py",
+      "name": "output_hash"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 305,
+      "module": "models.py",
+      "name": "status"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 309,
+      "module": "models.py",
+      "name": "method_version"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 313,
+      "module": "models.py",
+      "name": "schema_version"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 317,
+      "module": "models.py",
+      "name": "execution_context_hash"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 321,
+      "module": "models.py",
+      "name": "artifact"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 336,
+      "module": "models.py",
+      "name": "to_dict"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 348,
+      "module": "models.py",
+      "name": "validate_schema"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "output_dir"
+      ],
+      "has_docstring": false,
+      "line": 44,
+      "module": "runner.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "phase_name",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 64,
+      "module": "runner.py",
+      "name": "run_phase"
+    },
+    {
+      "args": [
+        "self",
+        "phase_name",
+        "envelope"
+      ],
+      "has_docstring": false,
+      "line": 94,
+      "module": "runner.py",
+      "name": "_write_phase_artifacts"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 123,
+      "module": "runner.py",
+      "name": "run_all"
+    },
+    {
+      "args": [],
+      "has_docstring": true,
+      "line": 26,
+      "module": "schema_validator.py",
+      "name": "get_schemas_dir"
+    },
+    {
+      "args": [
+        "schema_name"
+      ],
+      "has_docstring": true,
+      "line": 42,
+      "module": "schema_validator.py",
+      "name": "load_schema"
+    },
+    {
+      "args": [
+        "data",
+        "schema_name"
+      ],
+      "has_docstring": true,
+      "line": 66,
+      "module": "schema_validator.py",
+      "name": "validate_payload"
+    },
+    {
+      "args": [
+        "self",
+        "schema_name",
+        "errors",
+        "payload"
+      ],
+      "has_docstring": false,
+      "line": 15,
+      "module": "schema_validator.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "schema_name",
+        "data"
+      ],
+      "has_docstring": false,
+      "line": 83,
+      "module": "schema_validator.py",
+      "name": "validate_or_raise"
+    },
+    {
+      "args": [
+        "current",
+        "target"
+      ],
+      "has_docstring": false,
+      "line": 28,
+      "module": "states.py",
+      "name": "can_transition"
+    },
+    {
+      "args": [
+        "work_unit",
+        "target",
+        "reason"
+      ],
+      "has_docstring": false,
+      "line": 32,
+      "module": "states.py",
+      "name": "transition"
+    },
+    {
+      "args": [
+        "self",
+        "name",
+        "version",
+        "method_version",
+        "schema_version"
+      ],
+      "has_docstring": false,
+      "line": 24,
+      "module": "base.py",
+      "name": "__init__"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": false,
+      "line": 30,
+      "module": "base.py",
+      "name": "compute_input_hash"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context"
+      ],
+      "has_docstring": true,
+      "line": 40,
+      "module": "base.py",
+      "name": "execute"
+    },
+    {
+      "args": [
+        "self",
+        "target_path",
+        "context",
+        "output_dir"
+      ],
+      "has_docstring": false,
+      "line": 48,
+      "module": "base.py",
+      "name": "run"
+    },
+    {
+      "args": [
+        "self"
+      ],
+      "has_docstring": false,
+      "line": 21,
+      "module": "codify.py",
+      "name": "__init__"
+    }
+  ],
+  "interface_breaking_changes_detected": 0,
+  "interfaces_audited": 63,
+  "simplification_summary": "All audited functions preserve external contracts and return types.",
+  "target": "/Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop",
+  "total_files_audited": 14
+}

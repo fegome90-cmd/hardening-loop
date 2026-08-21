@@ -10,8 +10,10 @@ El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinist
 
 ### Principios Inquebrantables
 1. **Anti-Slop / Anti-Ferrari**: No crear agentes secundarios, MCPs, ni abstracciones antes de validar la necesidad con evidencia y tests.
-2. **Determinismo y Hermeticidad de Evidencia**: Ninguna afirmación es válida sin un `EvidenceEnvelope` inmutable indexado por SHA-256 de entrada y salida, incluyendo `method_version` y `environment_hash`.
-3. **Knowledge Admission Gate**: Las observaciones de un LLM o runner jamás se publican automáticamente como conocimiento canónico o reglas ejecutables. Requieren pasar por la aduana de revisión humana/curatorial con firma de identidad obligatoria (`RULE-GATE-001`).
+2. **Determinismo de Evidencia Canónica**: Ninguna afirmación es válida sin un `EvidenceEnvelope` inmutable estructurado en dos bloques:
+   - `canonical_evidence`: Identidad determinista libre de reloj (`evidence_id`, `input_hash`, `output_hash`, `method_version`, `schema_version`, `execution_context_hash`, `artifact_payload`).
+   - `runtime_receipt`: Telemetría no determinista (`timestamp`, `duration_ms`, `checks`, `status`).
+3. **Knowledge Admission Gate**: Las observaciones de un LLM o runner jamás se publican automáticamente como conocimiento canónico o reglas ejecutables. Requieren pasar por la aduana de revisión con una **Aserción de Revisor Humano** explícita (`RULE-GATE-001`).
 
 ---
 
@@ -24,7 +26,7 @@ El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinist
    ↓ (deletion_candidates.json, diff.patch, rollback_ref)
 3. SIMPLIFY INTERFACES
    ↓ (contract_diff.json)
-4. VERIFY FASTER & HERMETICITY
+4. VERIFY FASTER & CANONICAL DETERMINISM
    ↓ (test_results.json, benchmark.json, runtime_evidence.json)
 5. CODIFY VALIDATED LEARNING
    ↓ (knowledge_candidate.yaml, admission_record.json)
@@ -35,9 +37,9 @@ El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinist
 | Fase | Entrada | Salida Obligatoria | Criterio de Verificación |
 | :--- | :--- | :--- | :--- |
 | **`question`** | Código objetivo, especificaciones | `requirements_audit.json` | Clasificación de requerimientos en `explicit`, `inferred`, `historical`, `security_constraint`. |
-| **`delete`** | Audit de requerimientos, código | `deletion_candidates.json`, `diff.patch`, `rollback_ref` | Detección de código muerto, wrappers superfluos, herramientas no whitelisteadas. |
-| **`simplify`** | Código tras eliminación, diffs | `contract_diff.json` | Preservación de interfaces externas y tipos, reducción de firmas complejas. |
-| **`verify`** | Target / patch | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Medición de ciclo TDD, SLA de latencia (`< 100ms`) y consistencia de hashes herméticos. |
+| **`delete`** | Audit de requerimientos, código | `deletion_candidates.json`, `diff.patch`, `rollback_ref` | Detección de código muerto, wrappers superfluos, bypasses y acoplamientos rígidos. |
+| **`simplify`** | Código tras eliminación, diffs | `contract_diff.json` | Preservación estricta de interfaces públicas externas y tipos. |
+| **`verify`** | Target / patch | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Medición del ciclo TDD (`< 100ms`) y validación estricta de invariantes ontológicos. |
 | **`codify`** | Hallazgos verificados y evidencias | `knowledge_candidate.yaml`, `admission_record.json` | Extracción de reglas candidatas con referencias a `evidence_id` y firma de aduana. |
 
 ---
@@ -46,16 +48,16 @@ El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinist
 
 ```text
 [DRAFT] 
-   │ (Inicio de auditoría / hashing Merkle)
+   │ (Inicio de auditoría / Canonical Directory Digest)
    ▼
 [AUDITING] 
    │ (Propuesta de parches/simplificaciones)
    ▼
 [PATCH_PROPOSED] 
-   │ (Suite de tests y verificación de hermeticidad)
+   │ (Suite de tests en 3 capas)
    ▼
 [VERIFIED] 
-   │ (Generación de Knowledge Candidate con ID hexadecimal determinista)
+   │ (Generación de Knowledge Candidate con ID hexadecimal)
    ▼
 [KNOWLEDGE_CANDIDATE]
    │
@@ -73,11 +75,20 @@ El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinist
 
 ---
 
-## 4. Dogfooding & Reglas Canónicas Admitidas
+## 4. Estratificación de la Suite de Pruebas (3 Layers)
 
-El framework fue validado exitosamente contra sí mismo (`DOGFOODING-001`), admitiendo las siguientes reglas normativas:
+1. **Layer 1 — Implementation Tests (`tests/test_l1_implementation.py`):**
+   - Validación de parsers AST, serializadores YAML/JSON, argumentos de CLI y digest de directorios.
+2. **Layer 2 — Contract Invariants (`tests/test_l2_contracts.py`):**
+   - Transiciones del autómata de estados y validación estricta fail-closed de los esquemas JSON (`Draft7Validator`).
+3. **Layer 3 — Epistemic Invariants (`tests/test_l3_epistemic.py`):**
+   - Determinismo reproducible bit-a-bit del `canonical_manifest_digest` entre ejecuciones independientes.
+   - Prohibición de evidencia sin proveniencia (`execution_context_hash`, `method_version`, `schema_version`).
+   - Imposibilidad ontológica de alcanzar el estado `CANONICAL` sin registro de admisión aprobado por un revisor humano.
 
-* **`RULE-EVIDENCE-001` (SCHEMA_GUARD):** Todo sobre de evidencia (`EvidenceEnvelope`) debe incluir explícitamente `method_version` y `environment_hash` para garantizar reproducibilidad hermética cross-platform.
-* **`RULE-GATE-001` (CONTRACT_VALIDATOR):** La función de revisión de la Aduana (`review_candidate`) exige obligatoriamente un identificador de revisor humano no vacío (`reviewer.strip()`) para prevenir auto-admisiones espurias.
-* **`RULE-SEC-001` (CONTRACT_VALIDATOR):** Los wrappers de ejecución de herramientas LLM deben validar los comandos contra un set estricto de binarios permitidos (no shell abierto).
-* **`RULE-SEC-002` (SCHEMA_GUARD):** Toda lectura de archivo debe resolver rutas canónicas (`os.path.realpath`) y verificar la contención estricta dentro del directorio del workspace.
+---
+
+## 5. Reglas Normativas Admitidas en el Repositorio
+
+* **`RULE-EVIDENCE-001` (SCHEMA_GUARD):** Todo sobre de evidencia debe desacoplar el bloque determinista `canonical_evidence` de la telemetría `runtime_receipt` e incluir `execution_context_hash`.
+* **`RULE-GATE-001` (CONTRACT_VALIDATOR):** La función de revisión de la Aduana exige obligatoriamente una aserción de revisor humano no vacía (`reviewer.strip()`).

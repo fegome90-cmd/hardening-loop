@@ -1,0 +1,5 @@
+{
+  "admission_status": "PENDING_REVIEW",
+  "gate_policy": "NO_AUTO_CANONICAL",
+  "message": "Candidates must be reviewed using 'hardening-loop review <file> --admit' before becoming canonical knowledge."
+}

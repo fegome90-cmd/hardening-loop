@@ -1,19 +1,19 @@
 """Ontological invariant and hermetic reproducibility tests for the Hardening Loop."""
 
+import json
 import os
 import tempfile
-
 import pytest
-
+from hardening_loop.admission import KnowledgeAdmissionError, KnowledgeAdmissionGate
 from hardening_loop.models import (
     HardeningState,
-    compute_target_hash,
+    compute_canonical_directory_digest,
 )
 from hardening_loop.runner import HardeningRunner
 from hardening_loop.states import InvalidStateTransitionError, StateMachine
 
 
-def test_directory_target_merkle_hashing():
+def test_directory_target_canonical_digest():
     with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
         # Create identical files in d1 and d2
         f1_path = os.path.join(d1, "mod.py")
@@ -23,22 +23,22 @@ def test_directory_target_merkle_hashing():
         with open(f2_path, "w") as f:
             f.write("def foo(): return 42\n")
 
-        hash1 = compute_target_hash(d1)
-        hash2 = compute_target_hash(d2)
+        hash1 = compute_canonical_directory_digest(d1)
+        hash2 = compute_canonical_directory_digest(d2)
         assert hash1 == hash2
         assert len(hash1) == 64
 
         # Mutate d2
         with open(f2_path, "a") as f:
             f.write("# mutation\n")
-        hash2_mutated = compute_target_hash(d2)
+        hash2_mutated = compute_canonical_directory_digest(d2)
         assert hash1 != hash2_mutated
 
 
 def test_hermetic_reproducibility_run_a_vs_run_b():
-    """Invariant: Two independent runs over the same codebase produce identical payload hashes."""
+    """Invariant: Two independent runs over the same codebase produce identical canonical evidence hashes."""
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
-
+    
     with tempfile.TemporaryDirectory() as out_a, tempfile.TemporaryDirectory() as out_b:
         runner_a = HardeningRunner(target_path=target, output_dir=out_a)
         envelopes_a = runner_a.run_all()
@@ -48,13 +48,14 @@ def test_hermetic_reproducibility_run_a_vs_run_b():
 
         assert len(envelopes_a) == len(envelopes_b) == 5
 
-        # Output payload hashes must match bit-for-bit across all 5 phases
-        for env_a, env_b in zip(envelopes_a, envelopes_b, strict=True):
+        # Output payload hashes and canonical digests must match bit-for-bit across all 5 phases
+        for env_a, env_b in zip(envelopes_a, envelopes_b):
             assert env_a.phase == env_b.phase
             assert env_a.output_hash == env_b.output_hash, f"Hash mismatch in phase {env_a.phase}"
             assert env_a.input_hash == env_b.input_hash
             assert env_a.method_version == env_b.method_version
-            assert env_a.environment_hash == env_b.environment_hash
+            assert env_a.execution_context_hash == env_b.execution_context_hash
+            assert env_a.canonical.canonical_hash() == env_b.canonical.canonical_hash()
 
 
 def test_admission_gate_bypass_prevention():
@@ -80,7 +81,10 @@ def test_envelope_provenance_schema_fields():
         envelopes = runner.run_all()
         for env in envelopes:
             d = env.to_dict()
-            assert "method_version" in d
-            assert "environment_hash" in d
-            assert len(d["environment_hash"]) == 64
-            assert d["method_version"] == "v0.3"
+            assert "canonical_evidence" in d
+            assert "runtime_receipt" in d
+            c = d["canonical_evidence"]
+            assert "method_version" in c
+            assert "execution_context_hash" in c
+            assert len(c["execution_context_hash"]) == 64
+            assert c["method_version"] == "v0.3"

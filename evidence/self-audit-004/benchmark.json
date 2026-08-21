@@ -1,0 +1,4 @@
+{
+  "loop_target_threshold_ms": 100.0,
+  "meets_fast_feedback_sla": true
+}

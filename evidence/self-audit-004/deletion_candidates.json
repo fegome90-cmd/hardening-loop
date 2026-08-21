@@ -1,0 +1,23 @@
+[
+  {
+    "action": "REPLACE_WITH_STRUCTURED_RUNNER",
+    "candidate_id": "DEL-001",
+    "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
+    "severity": "HIGH",
+    "target": "unconstrained_shell_harness"
+  },
+  {
+    "action": "DELETE_AND_PARAMETERIZE",
+    "candidate_id": "DEL-002",
+    "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
+    "severity": "MEDIUM",
+    "target": "hardcoded_cwd_string"
+  },
+  {
+    "action": "DELETE_BYPASS_METHOD",
+    "candidate_id": "DEL-005",
+    "rationale": "Knowledge Admission Gate prohibits auto-promotion to canonical without reviewer identity.",
+    "severity": "CRITICAL",
+    "target": "auto_promotion_bypass"
+  }
+]
