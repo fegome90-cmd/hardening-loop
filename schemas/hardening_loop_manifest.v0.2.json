@@ -12,7 +12,11 @@
     "dirty_worktree",
     "final_status",
     "artifacts",
-    "integrity"
+    "integrity",
+    "canonical_manifest_digest",
+    "work_unit",
+    "envelopes",
+    "runtime_telemetry"
   ],
   "properties": {
     "schema_version": {

@@ -26,7 +26,7 @@ def is_internal_framework_target(target_path: str) -> bool:
         pkg_dir = os.path.realpath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
         target_real = os.path.realpath(target_path)
         return target_real == pkg_dir or target_real.startswith(pkg_dir + os.sep)
-    except Exception:
+    except (OSError, ValueError):
         return False
 
 
@@ -37,7 +37,7 @@ def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
       - subprocess.run(..., shell=True)
       - import subprocess as sp; sp.run(..., shell=True)
       - from subprocess import run; run(..., shell=True)
-      - from subprocess import run as my_run; my_run(..., shell=True)
+      - from subprocess import check_call as cc; cc(..., shell=True)
       - Ignores arbitrary user objects like runner.run(...)
 
     Returns:
@@ -54,7 +54,7 @@ def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
         elif isinstance(node, ast.ImportFrom):
             if node.module == "subprocess":
                 for alias in node.names:
-                    if alias.name in ("run", "Popen", "call", "check_output"):
+                    if alias.name in ("run", "Popen", "call", "check_output", "check_call"):
                         func_aliases.add(alias.asname or alias.name)
 
     calls: list[tuple[ast.Call, bool]] = []
@@ -65,7 +65,7 @@ def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
                 isinstance(node.func, ast.Attribute)
                 and isinstance(node.func.value, ast.Name)
                 and node.func.value.id in module_aliases
-                and node.func.attr in ("run", "Popen", "call", "check_output")
+                and node.func.attr in ("run", "Popen", "call", "check_output", "check_call")
             ):
                 is_subp = True
             elif isinstance(node.func, ast.Name) and node.func.id in func_aliases:

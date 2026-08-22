@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 
 import pytest
+import yaml
 
 from hardening_loop.cli import main
 from hardening_loop.models import (
     CanonicalEvidence,
     EvidenceEnvelope,
+    FindingSeverity,
     PhaseName,
     RuntimeReceipt,
     VerificationStatus,
@@ -182,6 +184,26 @@ def test_s5_inspect_detects_manifest_and_artifact_synchronized_tampering(tmp_pat
     assert ret == 2
 
 
+def test_inspect_fails_closed_when_canonical_manifest_digest_missing(tmp_path):
+    """Inspect must fail closed with code 2 if canonical_manifest_digest is missing or altered."""
+    target = tmp_path / "clean.py"
+    target.write_text("x = 100\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_inspect"
+
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner.run_all()
+
+    manifest_file = out_dir / "evidence_manifest.json"
+    manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+
+    # Remove canonical_manifest_digest
+    del manifest_data["canonical_manifest_digest"]
+    manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+
+    ret = main(["inspect", str(out_dir), "--workspace-root", str(tmp_path)])
+    assert ret == 2
+
+
 def test_s6_posthog_sink_hardening():
     """S6: PostHogTelemetrySink must enforce strict HTTPS allowlist and reject attacker hosts."""
     # 1. Authorized hosts MUST PASS
@@ -228,27 +250,24 @@ def test_p2_and_p3_ast_nodes_and_directory_loc_metrics(tmp_path):
     assert summary["throughput_loc_per_sec"] >= 0.0
 
 
-def test_p5_codify_candidate_timestamps_and_hermetic_hashing():
-    """P5: Candidate content hash must be hermetic and separate from runtime timestamp."""
-    c1 = CodifyPhase()
-    # Execute on non-framework target with real deletion finding
-    ctx = {
-        "evidence_ids": ["evi-11112222"],
-        "deletion_candidates": [
-            {
-                "target": "os_system_invocation",
-                "location": "main.py:10",
-                "rationale": "Unsafe os.system",
-                "action": "DELETE",
-                "severity": "HIGH",
-            }
-        ],
-    }
-    payload1, _, _ = c1.execute("/dummy/app.py", ctx)
-    cand1 = payload1["candidates"][0]
+def test_p5_persisted_candidates_have_real_utc_timestamps(tmp_path):
+    """P5: Persisted knowledge_candidate.yaml must contain real recent UTC timestamps, never 1970."""
+    target = tmp_path / "app_with_harness.py"
+    target.write_text("import os\n# hardcoded path\np = '/Users/dev/tmp'\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_kc"
 
-    assert "created_at" in cand1
-    assert cand1["created_at"] == "1970-01-01T00:00:00Z"
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner.run_all()
+
+    kc_file = out_dir / "knowledge_candidate.yaml"
+    assert kc_file.exists()
+    candidates = yaml.safe_load(kc_file.read_text(encoding="utf-8"))
+    assert len(candidates) > 0
+
+    for cand in candidates:
+        assert "created_at" in cand
+        assert not cand["created_at"].startswith("1970")
+        assert "202" in cand["created_at"]
 
 
 def test_p6_simplify_infers_unannotated_return_types(tmp_path):
@@ -337,6 +356,25 @@ def test_p7_codify_generates_candidates_from_actual_upstream_findings(tmp_path):
     assert candidate["rule_proposal"]["rule_id"].startswith("RULE-DEL-")
 
 
+def test_codify_preserves_medium_severity_from_verify_failures(tmp_path):
+    """CodifyPhase must preserve FindingSeverity.MEDIUM from verify failures without elevating to HIGH."""
+    phase = CodifyPhase()
+    ctx = {
+        "evidence_ids": ["evi-12345678"],
+        "verify_failures": [
+            {
+                "name": "no_hardcoded_developer_paths",
+                "severity": "MEDIUM",
+                "details": "Hardcoded path detected at app.py:12",
+            }
+        ],
+    }
+    payload, checks, status = phase.execute(str(tmp_path / "app.py"), ctx)
+    assert status == VerificationStatus.PASS
+    candidate = payload["candidates"][0]
+    assert candidate["finding"]["severity"] == FindingSeverity.MEDIUM.value
+
+
 def test_phases_fail_closed_on_syntax_errors(tmp_path):
     """Ley VIII: Python syntax errors in target must fail closed across all scanning phases."""
     bad_code = "def syntax_error(\n"
@@ -381,12 +419,9 @@ def test_external_path_with_hardening_loop_name_is_not_self_audit(tmp_path):
 
 
 def test_subprocess_alias_detection_positive_and_negative(tmp_path):
-    """Tests that subprocess invocations with shell=True are detected across all import aliases,
-
-    while custom runner.run(shell=True) is ignored.
-    """
-    # 1. Alias import subprocess as sp
-    code_sp = "import subprocess as sp\nsp.run('ls', shell=True)\n"
+    """Tests that subprocess invocations with shell=True are detected across all import aliases (including check_call)."""
+    # 1. Alias import subprocess as sp with check_call
+    code_sp = "import subprocess as sp\nsp.check_call('ls', shell=True)\n"
     target_sp = tmp_path / "sp.py"
     target_sp.write_text(code_sp, encoding="utf-8")
 
@@ -396,8 +431,8 @@ def test_subprocess_alias_detection_positive_and_negative(tmp_path):
     chk_sp = next(c for c in payload_sp["test_results"]["checks"] if c["name"] == "no_unconstrained_shell_execution")
     assert chk_sp["passed"] is False
 
-    # 2. from subprocess import run
-    code_from = "from subprocess import run\nrun('ls', shell=True)\n"
+    # 2. from subprocess import check_call as cc
+    code_from = "from subprocess import check_call as cc\ncc('ls', shell=True)\n"
     target_from = tmp_path / "from_subp.py"
     target_from.write_text(code_from, encoding="utf-8")
 
@@ -419,6 +454,27 @@ def test_subprocess_alias_detection_positive_and_negative(tmp_path):
         c for c in payload_custom["test_results"]["checks"] if c["name"] == "no_unconstrained_shell_execution"
     )
     assert chk_custom["passed"] is True
+
+
+def test_question_phase_exact_scope_attribution_in_nested_functions(tmp_path):
+    """QuestionPhase must attribute calls to the innermost enclosing function/method scope."""
+    code = """
+def outer_fn():
+    def inner_fn():
+        with open('data.txt') as f:
+            pass
+"""
+    target = tmp_path / "scope_nesting.py"
+    target.write_text(code, encoding="utf-8")
+
+    phase = QuestionPhase()
+    payload, checks, status = phase.execute(str(target), {})
+    assert status == VerificationStatus.PASS
+
+    reqs = payload["requirements"]
+    sec_req = next(r for r in reqs if r["type"] == "security_constraint" and "open" in r.get("audit_finding", ""))
+    # Source must attribute to (inner_fn), not (outer_fn)
+    assert "(inner_fn)" in sec_req["source"]
 
 
 def test_codify_no_shared_mutable_state_between_runners(tmp_path):
@@ -483,3 +539,35 @@ def test_cli_review_and_validate_strict_utf8_fail_closed(tmp_path):
     # Validate must fail closed (exit code 1 or 2, never 0)
     ret_validate = main(["validate", str(corrupted_yaml), "--workspace-root", str(tmp_path)])
     assert ret_validate != 0
+
+
+def test_run_all_emits_terminal_fail_event_and_manifest_on_exception(tmp_path, monkeypatch):
+    """If an unexpected exception aborts run_all(), it emits hardening_run_failed and materializes manifest FAIL."""
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_exception"
+
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+
+    # Force an exception during QuestionPhase run
+    def _exploding_run(*args, **kwargs):
+        raise RuntimeError("Simulated catastrophic crash in phase execution")
+
+    monkeypatch.setattr(runner.phases[PhaseName.QUESTION], "run", _exploding_run)
+
+    with pytest.raises(RuntimeError, match="Simulated catastrophic crash"):
+        runner.run_all()
+
+    # Verify terminal manifest was written with final_status FAIL
+    manifest_path = out_dir / "evidence_manifest.json"
+    assert manifest_path.exists()
+    manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest_data["final_status"] == "FAIL"
+
+    # Verify WAL contains hardening_run_failed event
+    wal_path = out_dir / "telemetry.jsonl"
+    assert wal_path.exists()
+    with open(wal_path, encoding="utf-8") as f:
+        events = [json.loads(line) for line in f if line.strip()]
+    failed_event = next(e for e in events if e.get("event_name") == "hardening_run_failed")
+    assert failed_event["status"] == "FAIL"

@@ -285,17 +285,23 @@ def handle_inspect(args: argparse.Namespace) -> int:
         for env in envelopes:
             SchemaValidator.validate_or_raise("evidence_envelope", env)
 
-        # 4. Recalculate canonical manifest digest over envelopes if present
-        if envelopes:
+        # 4. Enforce presence and recalculation of canonical manifest digest over envelopes (Finding 2)
+        if not expected_digest:
+            tamper_detected = True
+            tamper_details.append("Manifest is missing required 'canonical_manifest_digest'")
+            calculated_digest = ""
+        elif not envelopes:
+            tamper_detected = True
+            tamper_details.append("Manifest is missing required 'envelopes' list")
+            calculated_digest = ""
+        else:
             canonical_blocks = [env["canonical_evidence"] for env in envelopes]
             calculated_digest = sha256_dict({"phases": canonical_blocks})
-            if expected_digest and calculated_digest != expected_digest:
+            if calculated_digest != expected_digest:
                 tamper_detected = True
                 tamper_details.append(
                     f"Manifest canonical digest mismatch: expected {expected_digest}, calculated {calculated_digest}"
                 )
-        else:
-            calculated_digest = expected_digest or ""
 
         # 5. Physically verify every artifact file on disk against its SHA-256 digest (Ley XI & Ley VIII)
         verified_artifacts_count = 0

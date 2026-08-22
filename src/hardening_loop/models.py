@@ -202,6 +202,19 @@ class KnowledgeCandidate:
     review_notes: str | None = None
     created_at: str = field(default_factory=utc_now_iso)
 
+    def to_canonical_dict(self) -> dict[str, Any]:
+        """Returns clock-free semantic representation for deterministic canonical evidence hashing."""
+        return {
+            "candidate_id": self.candidate_id,
+            "observation": self.observation,
+            "finding": self.finding.to_dict(),
+            "rule_proposal": self.rule_proposal.to_dict(),
+            "evidence_references": self.evidence_references,
+            "admission_status": self.admission_status.value
+            if isinstance(self.admission_status, Enum)
+            else self.admission_status,
+        }
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "candidate_id": self.candidate_id,

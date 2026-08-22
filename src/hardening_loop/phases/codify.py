@@ -55,7 +55,6 @@ class CodifyPhase(BasePhase):
                     rationale="Hermetic reproducibility requires capturing the exact runtime execution context digest, schema version, and framework version.",
                     evidence_references=evidence_refs,
                     suggested_fix="Include canonical_evidence sub-object with execution_context_hash as required schema properties in evidence_envelope.schema.json.",
-                    created_at="1970-01-01T00:00:00Z",
                 )
             )
 
@@ -75,7 +74,6 @@ class CodifyPhase(BasePhase):
                     rationale="The knowledge base remains trustworthy only if all promoted rules have verifiable human/curator provenance.",
                     evidence_references=evidence_refs,
                     suggested_fix="Enforce reviewer.strip() check in KnowledgeAdmissionGate.review_candidate.",
-                    created_at="1970-01-01T00:00:00Z",
                 )
             )
         else:
@@ -120,7 +118,6 @@ class CodifyPhase(BasePhase):
                         rationale=rationale,
                         evidence_references=evidence_refs,
                         suggested_fix=f"Apply recommended action: {action}.",
-                        created_at="1970-01-01T00:00:00Z",
                     )
                 )
 
@@ -148,22 +145,27 @@ class CodifyPhase(BasePhase):
                         rationale=challenge,
                         evidence_references=evidence_refs,
                         suggested_fix="Inject configuration or environment parameters dynamically.",
-                        created_at="1970-01-01T00:00:00Z",
                     )
                 )
 
-            # 3. Formulate candidates from verify safety check failures with stable IDs
+            # 3. Formulate candidates from verify safety check failures with exact severity mapping
             for vf in verify_failures:
                 chk_name = vf.get("name", "check")
                 details = vf.get("details", "Safety invariant violated.")
                 rule_id = f"RULE-VERIFY-{sha256_text(chk_name)[:6].upper()}"
                 cid = f"kc-{sha256_text(rule_id + chk_name)[:12]}"
+                raw_sev = vf.get("severity", "HIGH")
+                try:
+                    vf_sev = FindingSeverity(raw_sev)
+                except ValueError:
+                    vf_sev = FindingSeverity.HIGH
+
                 candidates.append(
                     KnowledgeAdmissionGate.create_candidate(
                         candidate_id=cid,
                         observation=f"Verification safety check '{chk_name}' failed: {details}",
                         category=FindingCategory.SECURITY,
-                        severity=FindingSeverity.CRITICAL if vf.get("severity") == "CRITICAL" else FindingSeverity.HIGH,
+                        severity=vf_sev,
                         finding_description=details,
                         target_lines=[1],
                         rule_id=rule_id,
@@ -172,11 +174,11 @@ class CodifyPhase(BasePhase):
                         rationale=details,
                         evidence_references=evidence_refs,
                         suggested_fix="Ensure all safety checks pass prior to verification gate.",
-                        created_at="1970-01-01T00:00:00Z",
                     )
                 )
 
-        full_candidates = [c.to_dict() for c in candidates]
+        # Canonical payload contains clock-free semantic representation for hermetic determinism
+        canonical_candidates = [c.to_canonical_dict() for c in candidates]
 
         checks.append(f"Formulated {len(candidates)} knowledge candidate(s) from upstream findings")
         checks.append("Strict non-canonical invariant enforced: All candidates set to PENDING_REVIEW")
@@ -190,7 +192,7 @@ class CodifyPhase(BasePhase):
         payload = {
             "target": target_path,
             "candidates_count": len(candidates),
-            "candidates": full_candidates,
+            "candidates": canonical_candidates,
             "admission_record": {
                 "admission_status": "PENDING_REVIEW" if candidates else "NONE",
                 "gate_policy": "NO_AUTO_CANONICAL",

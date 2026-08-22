@@ -170,7 +170,7 @@ El ciclo de 5 fases implementa operativamente el workflow **CLOOP** (Clarify $\t
 | **`question`** | Código target, especificaciones | `requirements_audit.json` | Clasificación de requerimientos en `explicit`, `inferred`, `historical`, `security_constraint`. Cuestiona supuestos no justificados. |
 | **`delete`** | `requirements_audit.json`, target | `deletion_candidates.json`, `diff.patch`, `rollback_ref` | Detección y poda de código muerto, wrappers superfluos y herramientas no whitelisteadas. Genera rollback snapshot. |
 | **`simplify`** | Código podado, diffs | `contract_diff.json` | Preservación estricta de firmas públicas e interfaces, reducción de complejidad ciclomática y simplificación estructural. |
-| **`verify`** | Target / patch aplicado | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Verificación estática y de seguridad AST del target (sintaxis, eval/exec, shell unconstrained), validación de invariantes de framework e invariancia de contratos. Falla cerrado (`FAIL`) ante violaciones `CRITICAL`/`HIGH`. |
+| **`verify`** | Target / patch aplicado | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Verificación estática y de seguridad AST del target (sintaxis, eval/exec, shell unconstrained), validación de invariantes de framework e invariancia de contratos. Falla cerrado (`FAIL`) ante violaciones `CRITICAL`/`HIGH`. Violaciones `MEDIUM`/`LOW` emiten advertencias con estado agregado `WARN` sin omitir evidencia. |
 | **`codify`** | Hallazgos verificados y evidencias | `knowledge_candidate.yaml`, `admission_record.json` | Extracción de reglas formales vinculadas a `evidence_id`. Se genera en estado `PENDING_REVIEW` listo para la Aduana. |
 
 ---

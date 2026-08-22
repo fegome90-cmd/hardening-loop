@@ -438,6 +438,7 @@ class TelemetryEmitter:
         work_unit: dict[str, Any] | None = None,
         envelopes: list[dict[str, Any]] | None = None,
         runtime_telemetry: dict[str, Any] | None = None,
+        git_available: bool | None = None,
     ) -> dict[str, Any]:
         if artifacts is not None:
             for artifact in artifacts:
@@ -481,14 +482,37 @@ class TelemetryEmitter:
         }
         if branch is not None:
             manifest["branch"] = branch
-        if canonical_manifest_digest is not None:
-            manifest["canonical_manifest_digest"] = canonical_manifest_digest
-        if work_unit is not None:
-            manifest["work_unit"] = work_unit
-        if envelopes is not None:
-            manifest["envelopes"] = envelopes
-        if runtime_telemetry is not None:
-            manifest["runtime_telemetry"] = runtime_telemetry
+        if git_available is not None:
+            manifest["git_available"] = git_available
+        manifest["canonical_manifest_digest"] = (
+            canonical_manifest_digest if canonical_manifest_digest is not None else hashlib.sha256(b"").hexdigest()
+        )
+        manifest["work_unit"] = (
+            work_unit
+            if work_unit is not None
+            else {
+                "work_unit_id": self.run_id,
+                "target_path": ".",
+                "target_hash": hashlib.sha256(b"").hexdigest(),
+                "state": "DRAFT",
+                "phases_executed": [],
+            }
+        )
+        manifest["envelopes"] = envelopes if envelopes is not None else []
+        manifest["runtime_telemetry"] = (
+            runtime_telemetry
+            if runtime_telemetry is not None
+            else {
+                "total_duration_ms": 0.0,
+                "total_loc_analyzed": 0,
+                "total_ast_nodes_visited": 0,
+                "throughput_loc_per_sec": 0.0,
+                "initial_memory_mb": 0.0,
+                "peak_memory_mb": 0.0,
+                "memory_delta_mb": 0.0,
+                "final_status": final_status,
+            }
+        )
 
         manifest["integrity"]["manifest_hash"] = compute_manifest_hash(manifest)
         _validate_manifest(manifest)

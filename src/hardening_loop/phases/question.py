@@ -38,13 +38,22 @@ class QuestionPhase(BasePhase):
         return sources, errors
 
     @staticmethod
-    def _get_enclosing_scope(tree: ast.AST, target_node: ast.AST) -> str:
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                for child in ast.walk(node):
-                    if child is target_node:
-                        return node.name
-        return "module"
+    def _build_scope_map(tree: ast.AST) -> dict[ast.AST, str]:
+        """Builds a map from each AST node to its innermost enclosing function/class scope."""
+        scope_map: dict[ast.AST, str] = {}
+
+        def _traverse(node: ast.AST, current_scope: str) -> None:
+            scope_map[node] = current_scope
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    _traverse(child, child.name)
+                elif isinstance(child, ast.ClassDef):
+                    _traverse(child, child.name)
+                else:
+                    _traverse(child, current_scope)
+
+        _traverse(tree, "module")
+        return scope_map
 
     def execute(
         self, target_path: str, context: dict[str, Any]
@@ -81,6 +90,8 @@ class QuestionPhase(BasePhase):
                     VerificationStatus.FAIL,
                 )
 
+            scope_map = self._build_scope_map(tree)
+
             # 1. Audit explicit requirements (docstrings)
             docstring = ast.get_docstring(tree)
             if docstring:
@@ -98,7 +109,7 @@ class QuestionPhase(BasePhase):
             # 2. Audit Subprocess Execution Security Constraints with alias resolution
             subp_calls = find_subprocess_calls(tree)
             for node, has_shell_true in subp_calls:
-                scope = self._get_enclosing_scope(tree, node)
+                scope = scope_map.get(node, "module")
                 requirements.append(
                     {
                         "id": f"REQ-SEC-{len(requirements) + 1:03d}",
@@ -116,7 +127,7 @@ class QuestionPhase(BasePhase):
             for n in ast.walk(tree):
                 if isinstance(n, ast.Call):
                     if isinstance(n.func, ast.Name) and n.func.id == "open":
-                        scope = self._get_enclosing_scope(tree, n)
+                        scope = scope_map.get(n, "module")
                         requirements.append(
                             {
                                 "id": f"REQ-SEC-{len(requirements) + 1:03d}",

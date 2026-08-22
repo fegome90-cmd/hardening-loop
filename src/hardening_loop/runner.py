@@ -19,6 +19,7 @@ from .models import (
     compute_execution_context_hash,
     sha256_dict,
     sha256_text,
+    utc_now_iso,
 )
 from .phases.base import BasePhase
 from .phases.codify import CodifyPhase
@@ -100,6 +101,9 @@ class HardeningRunner:
         self.emitter = TelemetryEmitter(output_dir=self.output_dir, run_id=run_id, trace_id=trace_id)
         self._emitter_run_started = False
 
+        # Cache git context once per runner instance for stable provenance snapshot
+        self._cached_git_context = self._git_context()
+
         # Instantiate fresh, unshared phase instances per runner
         self.phases: dict[PhaseName, BasePhase] = {
             PhaseName.QUESTION: QuestionPhase(),
@@ -140,12 +144,13 @@ class HardeningRunner:
 
     def _ensure_run_started(self) -> None:
         if not self._emitter_run_started:
-            git_ctx = self._git_context()
+            git_ctx = self._cached_git_context
             input_h = self.work_unit.target_hash if self.work_unit.target_hash else sha256_text("")
             self.emitter.start_run(
                 git_sha=git_ctx["git_sha"],
                 branch=git_ctx["branch"],
                 dirty_worktree=git_ctx["dirty_worktree"],
+                git_available=git_ctx.get("git_available", False),
                 runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
                 config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
                 input_hash=input_h,
@@ -284,11 +289,24 @@ class HardeningRunner:
                 json.dump(payload.get("runtime_evidence", {}), f, indent=2, sort_keys=True)
             self.emitter.write_artifact(p3, artifact_type="evidence")
         elif phase_name == PhaseName.CODIFY:
-            # Read full candidates directly from canonical payload without private mutable state
-            candidates = payload.get("candidates", [])
+            # Materialize full candidate documents with real UTC creation timestamp for persistence
+            raw_candidates = payload.get("candidates", [])
+            materialized = []
+            for c in raw_candidates:
+                c_data = dict(c)
+                if "created_at" not in c_data:
+                    c_data["created_at"] = utc_now_iso()
+                if "reviewer" not in c_data:
+                    c_data["reviewer"] = None
+                if "reviewed_at" not in c_data:
+                    c_data["reviewed_at"] = None
+                if "review_notes" not in c_data:
+                    c_data["review_notes"] = None
+                materialized.append(c_data)
+
             p1 = os.path.join(self.output_dir, "knowledge_candidate.yaml")
             with open(p1, "w", encoding="utf-8") as f:
-                yaml.dump(candidates, f, sort_keys=False, allow_unicode=True)
+                yaml.dump(materialized, f, sort_keys=False, allow_unicode=True)
             self.emitter.write_artifact(p1, artifact_type="evidence")
 
             p2 = os.path.join(self.output_dir, "admission_record.json")
@@ -298,9 +316,9 @@ class HardeningRunner:
 
     def run_all(self) -> list[EvidenceEnvelope]:
         """Executes all 5 hardening phases in sequence with strict Fail-Closed abort on error."""
+        git_ctx = self._cached_git_context
         try:
             self._ensure_run_started()
-            git_ctx = self._git_context()
 
             order = [
                 PhaseName.QUESTION,
@@ -323,6 +341,7 @@ class HardeningRunner:
                     git_sha=git_ctx["git_sha"],
                     branch=git_ctx["branch"],
                     dirty_worktree=git_ctx["dirty_worktree"],
+                    git_available=git_ctx.get("git_available", False),
                     runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
                     config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
                     input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
@@ -333,6 +352,7 @@ class HardeningRunner:
                     git_sha=git_ctx["git_sha"],
                     branch=git_ctx["branch"],
                     dirty_worktree=git_ctx["dirty_worktree"],
+                    git_available=git_ctx.get("git_available", False),
                     runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
                     config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
                     input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
@@ -341,6 +361,24 @@ class HardeningRunner:
             # Write unified evidence_manifest.json with single writer and verified integrity hash
             self._write_manifest(final_status)
             return self.envelopes
+        except Exception as exc:
+            # Fail-closed terminal manifest and WAL event emission on unexpected exception
+            try:
+                self.emitter.fail_run(
+                    status="FAIL",
+                    reason_class=exc.__class__.__name__,
+                    git_sha=git_ctx["git_sha"],
+                    branch=git_ctx["branch"],
+                    dirty_worktree=git_ctx["dirty_worktree"],
+                    git_available=git_ctx.get("git_available", False),
+                    runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
+                    config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
+                    input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
+                )
+                self._write_manifest("FAIL")
+            except Exception:
+                pass
+            raise
         finally:
             self.emitter.close()
 
@@ -358,7 +396,7 @@ class HardeningRunner:
             json.dump(self.work_unit.to_dict(), f, indent=2, sort_keys=True)
         self.emitter.write_artifact(wu_path, artifact_type="work_unit")
 
-        git_ctx = self._git_context()
+        git_ctx = self._cached_git_context
 
         # Emit single unified manifest covering all fields in manifest_hash and schema validation
         manifest = self.emitter.write_manifest(
@@ -366,6 +404,7 @@ class HardeningRunner:
             git_sha=git_ctx["git_sha"],
             branch=git_ctx["branch"],
             dirty_worktree=git_ctx["dirty_worktree"],
+            git_available=git_ctx.get("git_available", False),
             canonical_manifest_digest=canonical_manifest_digest,
             work_unit=self.work_unit.to_dict(),
             envelopes=[e.to_dict() for e in self.envelopes],
