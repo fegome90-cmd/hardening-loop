@@ -8,10 +8,10 @@
 > [!CRITICAL]
 > **INVARIANTES INQUEBRANTABLES DE ORDEN CERO**
 > 
-> 1. **PROHIBICIÓN DE AUTO-ADMISIÓN (Leyes VIII y XII):** Ningún agente puede auto-aprobar o promover un `KnowledgeCandidate` al estado `ADMITTED` o `CANONICAL`. Toda admisión exige revisión humana explícita y firma en el [KnowledgeAdmissionGate](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/admission.py). La auto-admisión o bypass de la Aduana constituye una violación crítica de gobernanza.
+> 1. **PROHIBICIÓN DE AUTO-ADMISIÓN (Leyes VIII y XII):** Ningún agente puede auto-aprobar o promover un `KnowledgeCandidate` al estado `ADMITTED` o `CANONICAL`. Toda admisión exige revisión humana explícita y firma en el [KnowledgeAdmissionGate](src/hardening_loop/admission.py). La auto-admisión o bypass de la Aduana constituye una violación crítica de gobernanza.
 > 2. **PRINCIPIO FAIL-CLOSED (Ley VIII):** Si un hash SHA-256 no coincide, un schema JSON falla, un test no pasa o surge una ambigüedad de seguridad, el sistema **ABORTA INMEDIATAMENTE** en modo seguro. Queda prohibido asumir éxito silencioso o continuar la ejecución con advertencias no resueltas.
 > 3. **ANTI-SLOP / ANTI-FERRARI (Ley III):** Prohibido crear subagentes secundarios, MCPs, dependencias externas no autorizadas o capas de abstracción innecesarias antes de validar la necesidad con evidencia empírica y tests. La arquitectura premia la simplicidad y el minimalismo determinista.
-> 4. **SEÑALES ANTES QUE RELATO (Ley XI):** Ninguna tarea se considera completa sin un [EvidenceEnvelope](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/models.py) inmutable indexado por SHA-256 de entrada y salida. Las explicaciones en lenguaje natural ("debería funcionar", "parece correcto") carecen de validez sin evidencia observable y reproducible.
+> 4. **SEÑALES ANTES QUE RELATO (Ley XI):** Ninguna tarea se considera completa sin un [EvidenceEnvelope](src/hardening_loop/models.py) inmutable indexado por SHA-256 de entrada y salida. Las explicaciones en lenguaje natural ("debería funcionar", "parece correcto") carecen de validez sin evidencia observable y reproducible.
 > 5. **AISLAMIENTO Y NO CONTAMINACIÓN DE RUTAS (Leyes IV y VIII):** Toda mutación, auditoría y ejecución debe realizarse en un contexto aislado (worktree o rama transitoria) y confinada estrictamente a los límites del target (`target_path`). Prohibido mezclar paths locales del entorno de desarrollo o mutar directamente sobre `main`.
 
 ---
@@ -106,7 +106,7 @@ python3 -m hardening_loop.cli run --target <path-to-target> --phase codify --out
 
 ### Ley VI. De la Fuente de Verdad (SSOT) y Reconciliación
 - **Art. 1 & 2 (SSOT Explícito):** Los esquemas en `schemas/` y los dataclasses en `src/hardening_loop/models.py` son la única fuente de verdad técnica.
-- **Art. 3 & 4 (Prohibición de Contradicción y Reconciliación):** Prohibido el *documentation drift*. Todo cambio en contratos o CLI debe actualizar inmediatamente [docs/spec_v0.1.md](file:///Users/felipe_gonzalez/Developer/hardening-loop/docs/spec_v0.1.md) y [AGENTS.md](file:///Users/felipe_gonzalez/Developer/hardening-loop/AGENTS.md).
+- **Art. 3 & 4 (Prohibición de Contradicción y Reconciliación):** Prohibido el *documentation drift*. Todo cambio en contratos o CLI debe actualizar inmediatamente [docs/spec_v0.1.md](docs/spec_v0.1.md) y [AGENTS.md](AGENTS.md).
 - **Art. 5 (Cierre Inválido):** Cerrar una tarea sin reconciliar código, tests y documentación constituye un cierre falso.
 
 ### Ley VII. De la Primacía del Sistema y Neutralidad de Modelo
@@ -170,7 +170,7 @@ El ciclo de 5 fases implementa operativamente el workflow **CLOOP** (Clarify $\t
 | **`question`** | Código target, especificaciones | `requirements_audit.json` | Clasificación de requerimientos en `explicit`, `inferred`, `historical`, `security_constraint`. Cuestiona supuestos no justificados. |
 | **`delete`** | `requirements_audit.json`, target | `deletion_candidates.json`, `diff.patch`, `rollback_ref` | Detección y poda de código muerto, wrappers superfluos y herramientas no whitelisteadas. Genera rollback snapshot. |
 | **`simplify`** | Código podado, diffs | `contract_diff.json` | Preservación estricta de firmas públicas e interfaces, reducción de complejidad ciclomática y simplificación estructural. |
-| **`verify`** | Target / patch aplicado | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Ejecución de suite de tests, medición de tiempos de ciclo TDD y verificación de ausencia de regresiones. Status `PASS`. |
+| **`verify`** | Target / patch aplicado | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Verificación estática y de seguridad AST del target (sintaxis, eval/exec, shell unconstrained), validación de invariantes de framework e invariancia de contratos. Falla cerrado (`FAIL`) ante violaciones `CRITICAL`/`HIGH`. Violaciones `MEDIUM`/`LOW` emiten advertencias con estado agregado `WARN` sin omitir evidencia. |
 | **`codify`** | Hallazgos verificados y evidencias | `knowledge_candidate.yaml`, `admission_record.json` | Extracción de reglas formales vinculadas a `evidence_id`. Se genera en estado `PENDING_REVIEW` listo para la Aduana. |
 
 ---
@@ -212,7 +212,7 @@ El flujo legítimo es:
 1. **Observation:** Dato empírico observable en ejecución.
 2. **Finding:** Problema clasificado por categoría y severidad (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`).
 3. **KnowledgeCandidate:** Propuesta formal de regla estructurada con hash de evidencia referenciado.
-4. **Review (Aduana):** Decisión humana explícita (`ACCEPTED`, `REJECTED`, `OBSOLETE`) con firma del revisor y notas en [admission.py](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/admission.py).
+4. **Review (Aduana):** Decisión humana explícita (`ACCEPTED`, `REJECTED`, `OBSOLETE`) con firma del revisor y notas en [admission.py](src/hardening_loop/admission.py).
 5. **Accepted Knowledge:** Registro inmutable admitido.
 6. **Executable Rule:** Conversión en fixture de prueba (`tests/`), assert o guard estático en el repositorio.
 
@@ -234,7 +234,7 @@ Toda desviación de las reglas de esta constitución debe cumplir los siguientes
 ## 7. Convenciones de Código y Buenas Prácticas
 
 - **Lenguaje & Tipado:** Python 3.10+ con tipado estricto (`typing`, `from __future__ import annotations`).
-- **Modelado:** Dataclasses puras con serializadores explícitos `.to_dict()` en [models.py](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/models.py).
+- **Modelado:** Dataclasses puras con serializadores explícitos `.to_dict()` en [models.py](src/hardening_loop/models.py).
 - **Hashing:** Uso de `sha256_text()` y `sha256_dict()` (JSON canónico ordenado con separadores compactos) para garantizar determinismo estricto.
 - **Manejo de Errores:** Excepciones de dominio tipadas (`KnowledgeAdmissionError`, `SchemaValidationError`, etc.), fallo cerrado sin supresión silenciosa.
 - **Git Hygiene:** Commits atómicos convencionales. Workspace 100% limpio antes de cada entrega. Cero atribución sintética AI.

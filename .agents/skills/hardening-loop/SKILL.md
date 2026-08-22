@@ -1,69 +1,82 @@
 ---
 name: hardening-loop
-description: Audita, simplifica, verifica y codifica reglas de calidad determinísticamente sobre código con el ciclo de 5 fases (CLOOP). Usar cuando se audite código generado por IA, se pode código muerto, se verifiquen contratos o se extraigan reglas de admisión.
+description: Audita, simplifica, verifica y codifica reglas de calidad determinísticamente sobre código con el ciclo de 5 fases (CLOOP). Incluye comandos de ejecución modular (run), revisión en la Aduana (review), auditoría criptográfica (inspect), validación de esquemas (validate) y telemetría de rendimiento (telemetry).
 ---
 
-# Hardening Loop CLI
+# Hardening Loop CLI Reference
 
-Framework de endurecimiento algorítmico en 5 fases (`question` $\to$ `delete` $\to$ `simplify` $\to$ `verify` $\to$ `codify`) con validación JSON Schema Fail-Closed y Aduana de Conocimiento.
-
-## Cuándo Usar Esta Skill
-- Al auditar código generado por modelos de IA o pipelines automáticos.
-- Al podar wrappers innecesarios, abstracciones superfluas o código muerto.
-- Para verificar regresiones y contratos de interfaces públicas.
-- Al formalizar hallazgos empíricos en candidatos de conocimiento (`knowledge_candidate.yaml`).
-
-## Cuándo NO Usar
-- Para formateo estético simple (usar `make format` o `ruff`).
-- Para diseño de arquitectura desde cero (usar `sdd-design` o `sdd-spec`).
+Framework determinista de endurecimiento algorítmico en 5 fases (`question` $\to$ `delete` $\to$ `simplify` $\to$ `verify` $\to$ `codify`) con validación JSON Schema Fail-Closed, Sandboxing de Workspace, Telemetría de Rendimiento y Aduana de Conocimiento.
 
 ---
 
-## Recetario Operativo para Agentes
+## 🛠️ Subcomandos Disponibles en el CLI
 
-### 1. Auditoría Completa (Modo Agente / JSON)
+### 1. `hardening-loop run` — Ejecución del Ciclo de Endurecimiento
+Ejecuta las fases del pipeline sobre un archivo o módulo objetivo.
+
 ```bash
-hardening-loop run --target <path-to-target> --phase all --output evidence/<run-id> --json
-```
-*Interpretación:* Si retorna `exit 0`, el código cumple la constitución y genera `evidence/<run-id>/evidence_manifest.json`.
+# Corrida completa con salida estructurada JSON para subagentes
+hardening-loop run --target <path> --phase all --output evidence/<run-id> --workspace-root <ws-root> --json
 
-### 2. Ejecución Silenciosa (Token-Efficient)
-```bash
-hardening-loop run --target <path-to-target> --phase all --output evidence/<run-id> -q
-```
-
-### 3. Ejecución Selectiva por Fase
-```bash
-# Fase 1: Cuestionar supuestos y clasificar requerimientos
-hardening-loop run --target <path> --phase question --output evidence/<run-id> --json
-
-# Fase 2: Podar código muerto y generar diff.patch
-hardening-loop run --target <path> --phase delete --output evidence/<run-id> --json
-
-# Fase 3: Reducir complejidad ciclomática
-hardening-loop run --target <path> --phase simplify --output evidence/<run-id> --json
-
-# Fase 4: Ejecutar suite de pruebas y verificar estado PASS
-hardening-loop run --target <path> --phase verify --output evidence/<run-id> --json
-
-# Fase 5: Codificar reglas candidatas en PENDING_REVIEW
-hardening-loop run --target <path> --phase codify --output evidence/<run-id> --json
-```
-
-### 4. Aduana de Conocimiento (Knowledge Admission Gate)
-```bash
-# Admitir candidato
-hardening-loop review evidence/<run-id>/knowledge_candidate.yaml --admit --reviewer "<agent-id>" --notes "<justification>" --json
-
-# Rechazar candidato
-hardening-loop review evidence/<run-id>/knowledge_candidate.yaml --reject --reviewer "<agent-id>" --notes "<reason>" --json
+# Corrida silenciosa (minimiza tokens en contexto)
+hardening-loop run --target <path> --phase all --output evidence/<run-id> -q
 ```
 
 ---
 
-## Tabla de Códigos de Salida POSIX
-| Exit Code | Estado | Acción Requerida por el Agente |
+### 2. `hardening-loop telemetry` — Telemetría, Latencias y Throughput
+Mide y reporta el rendimiento de procesamiento del loop (latencias por fase, LOC/s, memoria RSS).
+
+```bash
+# Reporte visual tabular
+hardening-loop telemetry evidence/<run-id>
+
+# Reporte JSON para agentes o dashboards
+hardening-loop telemetry evidence/<run-id> --json
+
+# Exportación idempotente de telemetría a PostHog Cloud
+hardening-loop telemetry evidence/<run-id> --posthog
+```
+
+**Métricas provistas:**
+- ⏱️ `phase_durations_ms`: Latencia individual de cada fase (`question`, `delete`, `simplify`, `verify`, `codify`).
+- 🚀 `throughput_loc_per_sec`: Velocidad de procesamiento (líneas de código por segundo).
+- 💾 `peak_memory_mb`: Memoria RSS residente consumida.
+- 🏁 `total_duration_ms` y `final_status` (`PASS` / `WARN` / `FAIL`).
+
+---
+
+### 3. `hardening-loop inspect` — Auditoría Criptográfica e Integridad Anti-Tampering
+Inspecciona un directorio de evidencias, valida schemas y recalcula los digests SHA-256 canónicos.
+
+```bash
+hardening-loop inspect evidence/<run-id> --json
+```
+
+---
+
+### 4. `hardening-loop validate` — Validación Rápida de Esquemas Normativos
+Valida cualquier archivo JSON o YAML contra los esquemas normativos Draft-7 (`schemas/`).
+
+```bash
+hardening-loop validate evidence/<run-id>/knowledge_candidate.yaml --json
+```
+
+---
+
+### 5. `hardening-loop review` — Conocimiento en la Aduana (Knowledge Admission Gate)
+Permite a un revisor humano o curador evaluar formalmente un `KnowledgeCandidate`.
+
+```bash
+hardening-loop review evidence/<run-id>/knowledge_candidate.yaml --admit --reviewer "<curator-id>" --notes "<justification>" --json
+```
+
+---
+
+## 🚦 Tabla de Códigos de Salida POSIX
+
+| Exit Code | Estado | Significado Técnico y Acción del Agente |
 | :--- | :--- | :--- |
-| **`0`** | `PASS` | Continuar con la siguiente tarea. Todos los contratos superados. |
-| **`1`** | `FAIL` | Leer `evidence/<run-id>/test_results.json` o `contract_diff.json` para reparar el código. |
-| **`2`** | `SCHEMA ERROR` | Violación de Schema JSON. Abortar inmediatamente (`fail-closed`). |
+| **`0`** | `PASS` / `VALID` | Éxito total. Todos los contratos, schemas e invariantes fueron superados. |
+| **`1`** | `FAIL` | Fallo funcional, test no superado o archivo no encontrado. Leer `test_results.json` o `contract_diff.json` para corregir. |
+| **`2`** | `FAIL-CLOSED` | Violación de Schema JSON (`SchemaValidationError`), escape de workspace (`PathSandboxError`) o alteración criptográfica (`TAMPER_DETECTED`). Abortar inmediatamente. |

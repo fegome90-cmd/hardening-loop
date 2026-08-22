@@ -35,33 +35,44 @@ def test_directory_target_canonical_digest():
         assert hash1 != hash2_mutated
 
 
-def test_hermetic_reproducibility_run_a_vs_run_b():
+def test_hermetic_reproducibility_run_a_vs_run_b(tmp_path):
     """Invariant: Two independent runs over the same codebase produce identical canonical evidence hashes."""
-    target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    target_dir = ws / "pkg"
+    target_dir.mkdir()
+    (target_dir / "__init__.py").write_text("# init\n", encoding="utf-8")
+    (target_dir / "mod.py").write_text("def foo(): return 42\n", encoding="utf-8")
 
-    with tempfile.TemporaryDirectory() as out_a, tempfile.TemporaryDirectory() as out_b:
-        runner_a = HardeningRunner(target_path=target, output_dir=out_a)
-        envelopes_a = runner_a.run_all()
+    out_a = str(ws / "out_a")
+    out_b = str(ws / "out_b")
 
-        runner_b = HardeningRunner(target_path=target, output_dir=out_b)
-        envelopes_b = runner_b.run_all()
+    runner_a = HardeningRunner(target_path=str(target_dir), output_dir=out_a, workspace_root=str(ws))
+    envelopes_a = runner_a.run_all()
 
-        assert len(envelopes_a) == len(envelopes_b) == 5
+    runner_b = HardeningRunner(target_path=str(target_dir), output_dir=out_b, workspace_root=str(ws))
+    envelopes_b = runner_b.run_all()
 
-        # Output payload hashes and canonical digests must match bit-for-bit across all 5 phases
-        for env_a, env_b in zip(envelopes_a, envelopes_b, strict=True):
-            assert env_a.phase == env_b.phase
-            assert env_a.output_hash == env_b.output_hash, f"Hash mismatch in phase {env_a.phase}"
-            assert env_a.input_hash == env_b.input_hash
-            assert env_a.method_version == env_b.method_version
-            assert env_a.execution_context_hash == env_b.execution_context_hash
-            assert env_a.canonical.canonical_hash() == env_b.canonical.canonical_hash()
+    assert len(envelopes_a) == len(envelopes_b) == 5
+
+    # Output payload hashes and canonical digests must match bit-for-bit across all 5 phases
+    for env_a, env_b in zip(envelopes_a, envelopes_b, strict=True):
+        assert env_a.phase == env_b.phase
+        assert env_a.output_hash == env_b.output_hash, f"Hash mismatch in phase {env_a.phase}"
+        assert env_a.input_hash == env_b.input_hash
+        assert env_a.method_version == env_b.method_version
+        assert env_a.execution_context_hash == env_b.execution_context_hash
+        assert env_a.canonical.canonical_hash() == env_b.canonical.canonical_hash()
 
 
-def test_admission_gate_bypass_prevention():
+def test_admission_gate_bypass_prevention(tmp_path):
     """Invariant: A WorkUnit can never transition to ADMITTED or CANONICAL skipping review."""
-    target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
-    runner = HardeningRunner(target_path=target, output_dir="/tmp/dummy")
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    target_file = ws / "target.py"
+    target_file.write_text("def target(): pass\n", encoding="utf-8")
+
+    runner = HardeningRunner(target_path=str(target_file), output_dir=str(ws / "dummy"), workspace_root=str(ws))
 
     assert runner.work_unit.state == HardeningState.DRAFT
 
@@ -74,17 +85,20 @@ def test_admission_gate_bypass_prevention():
         StateMachine.transition(runner.work_unit, HardeningState.CANONICAL)
 
 
-def test_envelope_provenance_schema_fields():
-    target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
-    with tempfile.TemporaryDirectory() as out_dir:
-        runner = HardeningRunner(target_path=target, output_dir=out_dir)
-        envelopes = runner.run_all()
-        for env in envelopes:
-            d = env.to_dict()
-            assert "canonical_evidence" in d
-            assert "runtime_receipt" in d
-            c = d["canonical_evidence"]
-            assert "method_version" in c
-            assert "execution_context_hash" in c
-            assert len(c["execution_context_hash"]) == 64
-            assert c["method_version"] == "v0.3"
+def test_envelope_provenance_schema_fields(tmp_path):
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    target_file = ws / "target.py"
+    target_file.write_text("def target(): pass\n", encoding="utf-8")
+
+    runner = HardeningRunner(target_path=str(target_file), output_dir=str(ws / "out"), workspace_root=str(ws))
+    envelopes = runner.run_all()
+    for env in envelopes:
+        d = env.to_dict()
+        assert "canonical_evidence" in d
+        assert "runtime_receipt" in d
+        c = d["canonical_evidence"]
+        assert "method_version" in c
+        assert "execution_context_hash" in c
+        assert len(c["execution_context_hash"]) == 64
+        assert c["method_version"] == "v0.3"

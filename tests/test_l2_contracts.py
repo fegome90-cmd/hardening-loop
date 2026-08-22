@@ -23,7 +23,7 @@ def test_state_machine_valid_progression():
     StateMachine.transition(wu, HardeningState.KNOWLEDGE_CANDIDATE)
     assert wu.state == HardeningState.KNOWLEDGE_CANDIDATE
 
-    StateMachine.transition(wu, HardeningState.ADMITTED)
+    StateMachine.transition(wu, HardeningState.ADMITTED, "Approved by human reviewer")
     assert wu.state == HardeningState.ADMITTED
 
     StateMachine.transition(wu, HardeningState.READY_FOR_PR_REVIEW)

@@ -2,8 +2,30 @@
   "contract_analysis": [
     {
       "breaking_change": false,
-      "interface": "qwen-tool-loop.py::execute()",
-      "observation": "Audited function contract.",
+      "interface": "qwen-tool-loop.py::call_model(messages, model, max_tokens)",
+      "observation": "Function contract: (messages, model, max_tokens) -> Any",
+      "return_type": "Any",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "qwen-tool-loop.py::parse_tool_call(text)",
+      "observation": "Function contract: (text) -> Any",
+      "return_type": "Any",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "qwen-tool-loop.py::execute(fn, params)",
+      "observation": "Function contract: (fn, params) -> Any",
+      "return_type": "Any",
+      "status": "VALIDATED"
+    },
+    {
+      "breaking_change": false,
+      "interface": "qwen-tool-loop.py::main()",
+      "observation": "Function contract: () -> Any",
+      "return_type": "Any",
       "status": "VALIDATED"
     }
   ],
@@ -17,7 +39,8 @@
       "has_docstring": false,
       "line": 27,
       "module": "qwen-tool-loop.py",
-      "name": "call_model"
+      "name": "call_model",
+      "return_type": "Any"
     },
     {
       "args": [
@@ -26,7 +49,8 @@
       "has_docstring": false,
       "line": 40,
       "module": "qwen-tool-loop.py",
-      "name": "parse_tool_call"
+      "name": "parse_tool_call",
+      "return_type": "Any"
     },
     {
       "args": [
@@ -36,19 +60,21 @@
       "has_docstring": true,
       "line": 51,
       "module": "qwen-tool-loop.py",
-      "name": "execute"
+      "name": "execute",
+      "return_type": "Any"
     },
     {
       "args": [],
       "has_docstring": false,
       "line": 79,
       "module": "qwen-tool-loop.py",
-      "name": "main"
+      "name": "main",
+      "return_type": "Any"
     }
   ],
   "interface_breaking_changes_detected": 0,
   "interfaces_audited": 4,
-  "simplification_summary": "All audited functions preserve external contracts and return types.",
+  "simplification_summary": "All audited functions preserve external contracts and inferred return types.",
   "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
   "total_files_audited": 1
 }

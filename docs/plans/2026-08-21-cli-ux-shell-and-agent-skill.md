@@ -1,7 +1,7 @@
 # Plan: CLI UX Enhancement, Shell Completions & Agent Skill (Ask-to-Cole Flow)
 
-> **Fecha:** 2026-08-21  
-> **Metodología:** Ask-to-Cole (Smallest Sufficient Skill + 3-Tier Verification)  
+> **Fecha:** 2026-08-21
+> **Metodología:** Ask-to-Cole (Smallest Sufficient Skill + 3-Tier Verification)
 > **SSOT Plan:** `docs/plans/2026-08-21-cli-ux-shell-and-agent-skill.md`
 
 ---

@@ -1,114 +1,90 @@
 {
-  "completed_at": "2026-08-21T12:03:45.864850+00:00",
+  "canonical_manifest_digest": "b92fa74380345d4989b3f8413054d119ef08e44bbabd46d83345c9514e52d392",
   "envelopes": [
     {
-      "artifact": {
-        "artifact_type": "question_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/question_artifact.json",
-        "payload": {
-          "challenged_assumptions_count": 2,
+      "canonical_evidence": {
+        "artifact_payload": {
+          "challenged_assumptions_count": 1,
           "requirements": [
             {
               "id": "REQ-EXP-001",
               "justification_valid": true,
               "notes": "qwen-tool-loop.py \u2014 Tool loop manual para Qwen3.8-27B MLX (:1234).",
-              "source": "qwen-tool-loop.py",
+              "source": "qwen-tool-loop.py:1",
               "statement": "Module docstring declaration in qwen-tool-loop.py",
               "type": "explicit"
             },
             {
-              "audit_finding": "Claims whitelist but invokes unconstrained shell",
+              "audit_finding": "Subprocess call uses structured argument list",
               "id": "REQ-SEC-002",
               "justification_valid": true,
-              "source": "execute_function",
-              "statement": "Subprocess execution must strictly enforce command whitelist and sanitize input.",
+              "source": "qwen-tool-loop.py:58 (execute)",
+              "statement": "Subprocess execution must enforce command whitelisting and avoid unconstrained shell injection.",
               "type": "security_constraint"
             },
             {
-              "audit_finding": "No boundary verification before opening file_path",
+              "audit_finding": "Standard open() invocation audited",
               "id": "REQ-SEC-003",
               "justification_valid": true,
-              "source": "file_reader",
-              "statement": "File reading must be restricted to workspace boundary.",
-              "type": "security_constraint"
-            },
-            {
-              "audit_finding": "Missing explicit method_version/environment_hash tracking",
-              "id": "REQ-SEC-004",
-              "justification_valid": true,
-              "source": "evidence_provenance",
-              "statement": "All evidence envelopes must declare method version and host environment hash.",
+              "source": "qwen-tool-loop.py:71 (execute)",
+              "statement": "File reading should be confined to authorized workspace boundaries.",
               "type": "security_constraint"
             },
             {
               "challenge": "Environment paths must be injected via CLI arguments, environment variables, or workspace config.",
-              "id": "REQ-HIST-001",
+              "id": "REQ-HIST-004",
               "justification_valid": false,
-              "source": "hardcoded_string",
+              "source": "qwen-tool-loop.py:61",
               "statement": "Hardcoded developer environment path: /Users/felipe_gonzalez/Developer/examen_grado",
               "type": "historical"
             }
           ],
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
           "total_files_audited": 1,
-          "total_requirements_audited": 5
-        }
+          "total_requirements_audited": 4
+        },
+        "evidence_id": "evi-324c01071106",
+        "execution_context_hash": "6c7668fe6cdd2bf1206d7518d0c860d67f8f78d9690c4511354d4c5fd1f5a948",
+        "input_hash": "454516d4dd518ab1dece215d017eb1d8d467f2d551b3d758f5528713fa407e1a",
+        "method_version": "v0.3",
+        "output_hash": "324c01071106cb38806144f5ec1e43694745fd51cee88a48e3fa91b92ebf705b",
+        "phase": "question",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-f419be2d36a1",
-      "input_hash": "454516d4dd518ab1dece215d017eb1d8d467f2d551b3d758f5528713fa407e1a",
-      "method_version": "v0.3",
-      "output_hash": "f419be2d36a16d7c28d0bfd7d78d8fc86950f1083089217075f7511eb4a39815",
-      "phase": "question",
-      "producer": "hardening-loop:question:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.848346+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "Parsed 1 source file(s) for requirements extraction",
-          "Audited 5 requirements across 1 file(s)"
+          "Audited 4 requirements across 1 file(s)"
         ],
-        "duration_ms": 0.21,
+        "duration_ms": 2.077,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:question:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T20:55:00.336520+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "delete_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/delete_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "deletion_candidates": [
             {
               "action": "REPLACE_WITH_STRUCTURED_RUNNER",
               "candidate_id": "DEL-001",
-              "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
+              "location": "qwen-tool-loop.py:58",
+              "rationale": "Direct invocation of shell binary or shell=True allows unconstrained command injection.",
               "severity": "HIGH",
               "target": "unconstrained_shell_harness"
             },
             {
               "action": "DELETE_AND_PARAMETERIZE",
               "candidate_id": "DEL-002",
-              "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
+              "location": "qwen-tool-loop.py:61",
+              "rationale": "Hardcoded developer absolute path makes script brittle and non-relocatable.",
               "severity": "MEDIUM",
-              "target": "hardcoded_cwd_string"
-            },
-            {
-              "action": "REPLACE_WITH_SANDBOXED_RESOLVER",
-              "candidate_id": "DEL-003",
-              "rationale": "Arbitrary file reading allows potential directory traversal beyond repo bounds.",
-              "severity": "HIGH",
-              "target": "unsandboxed_open_call"
-            },
-            {
-              "action": "REPLACE_WITH_EVIDENCE_ENVELOPE",
-              "candidate_id": "DEL-004",
-              "rationale": "Direct print statements to sys.stderr lack deterministic evidence logging and hashing.",
-              "severity": "MEDIUM",
-              "target": "unstructured_stderr_logging"
+              "target": "hardcoded_path_string"
             }
           ],
-          "deletion_candidates_count": 4,
+          "deletion_candidates_count": 2,
           "diff_patch": "",
           "rollback_reference": {
             "original_target_hash": "344a8b52f4b841d712529fd652917648f9f7b2125a6784e7ef90a0939baec778",
@@ -116,38 +92,58 @@
           },
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
           "total_files_scanned": 1
-        }
+        },
+        "evidence_id": "evi-76ae0347d7b4",
+        "execution_context_hash": "6c7668fe6cdd2bf1206d7518d0c860d67f8f78d9690c4511354d4c5fd1f5a948",
+        "input_hash": "b642653c9a63bc89a153677dc5b3ff756303446829afe3f7529cf953f051bbf6",
+        "method_version": "v0.3",
+        "output_hash": "76ae0347d7b4fae76a8915f5654c7bba329538fccf735ad3b5fa6572105e2566",
+        "phase": "delete",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-ac3c99f15c78",
-      "input_hash": "8d64c2e051a9b0cc99c4d4914575b3b0c3d50958b6b15435d9074ca6169d1d78",
-      "method_version": "v0.3",
-      "output_hash": "ac3c99f15c78759751542833b8b09760ee6ef51ed0797e7610f2c2a4eacc2c0c",
-      "phase": "delete",
-      "producer": "hardening-loop:delete:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.860679+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "Scanned 1 source file(s) for deletion candidates and over-privileged harnesses",
-          "Identified 4 deletion candidates",
+          "Identified 2 deletion candidates with exact location attribution",
           "Generated deterministic rollback reference"
         ],
-        "duration_ms": 0.29,
+        "duration_ms": 1.139,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:delete:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T20:55:00.348548+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "simplify_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/simplify_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "contract_analysis": [
             {
               "breaking_change": false,
-              "interface": "qwen-tool-loop.py::execute()",
-              "observation": "Audited function contract.",
+              "interface": "qwen-tool-loop.py::call_model(messages, model, max_tokens)",
+              "observation": "Function contract: (messages, model, max_tokens) -> Any",
+              "return_type": "Any",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "qwen-tool-loop.py::parse_tool_call(text)",
+              "observation": "Function contract: (text) -> Any",
+              "return_type": "Any",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "qwen-tool-loop.py::execute(fn, params)",
+              "observation": "Function contract: (fn, params) -> Any",
+              "return_type": "Any",
+              "status": "VALIDATED"
+            },
+            {
+              "breaking_change": false,
+              "interface": "qwen-tool-loop.py::main()",
+              "observation": "Function contract: () -> Any",
+              "return_type": "Any",
               "status": "VALIDATED"
             }
           ],
@@ -161,7 +157,8 @@
               "has_docstring": false,
               "line": 27,
               "module": "qwen-tool-loop.py",
-              "name": "call_model"
+              "name": "call_model",
+              "return_type": "Any"
             },
             {
               "args": [
@@ -170,7 +167,8 @@
               "has_docstring": false,
               "line": 40,
               "module": "qwen-tool-loop.py",
-              "name": "parse_tool_call"
+              "name": "parse_tool_call",
+              "return_type": "Any"
             },
             {
               "args": [
@@ -180,47 +178,47 @@
               "has_docstring": true,
               "line": 51,
               "module": "qwen-tool-loop.py",
-              "name": "execute"
+              "name": "execute",
+              "return_type": "Any"
             },
             {
               "args": [],
               "has_docstring": false,
               "line": 79,
               "module": "qwen-tool-loop.py",
-              "name": "main"
+              "name": "main",
+              "return_type": "Any"
             }
           ],
           "interface_breaking_changes_detected": 0,
           "interfaces_audited": 4,
-          "simplification_summary": "All audited functions preserve external contracts and return types.",
+          "simplification_summary": "All audited functions preserve external contracts and inferred return types.",
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
           "total_files_audited": 1
-        }
+        },
+        "evidence_id": "evi-87056d031557",
+        "execution_context_hash": "6c7668fe6cdd2bf1206d7518d0c860d67f8f78d9690c4511354d4c5fd1f5a948",
+        "input_hash": "0ab67fc582d29d0655e2bc5d14f9fbe6d9dfca78627d206e90b76273ef193b82",
+        "method_version": "v0.3",
+        "output_hash": "87056d031557bc497d1614ea2cf88aa18176091de4c7c8117c3ead5f84f11b10",
+        "phase": "simplify",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-fbeaef974e9b",
-      "input_hash": "87ffe910ce04ecd3a1111d636d611ab717bb9427c448c4d4a7b3b8a52ba0a027",
-      "method_version": "v0.3",
-      "output_hash": "fbeaef974e9b371c657461e1ed6a823c15d0d8db63e30f9f8701abc58cd5af90",
-      "phase": "simplify",
-      "producer": "hardening-loop:simplify:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.861894+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
-          "Parsed 4 function definitions across 1 file(s)",
+          "Parsed and analyzed 4 function definitions across 1 file(s)",
           "Audited 4 functions without introducing interface breaking changes"
         ],
-        "duration_ms": 0.9,
+        "duration_ms": 0.751,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:simplify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T20:55:00.357854+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "verify_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/verify_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "benchmark": {
             "loop_target_threshold_ms": 100.0,
             "meets_fast_feedback_sla": true
@@ -237,57 +235,55 @@
               "errors": [],
               "passed": true
             },
-            "failed_checks": 3,
-            "passed_checks": 1,
+            "failed_checks": 1,
+            "passed_checks": 3,
             "safety_checks": [
               {
-                "check": "envelope_provenance_fields",
-                "details": "Checking if EvidenceEnvelope includes method_version and environment_hash.",
-                "passed": false,
-                "severity_if_failed": "MEDIUM"
-              },
-              {
-                "check": "knowledge_admission_gate_invariants",
-                "details": "Checking if admission gate forbids auto-canonical promotion.",
-                "passed": false,
+                "check": "eval_exec_safety",
+                "details": "No dynamic eval/exec detected in target.",
+                "passed": true,
                 "severity_if_failed": "CRITICAL"
               },
               {
-                "check": "state_machine_acyclic_transitions",
-                "details": "Checking if valid state lifecycle transitions are defined.",
-                "passed": false,
+                "check": "unconstrained_shell_safety",
+                "details": "No unconstrained shell execution detected.",
+                "passed": true,
                 "severity_if_failed": "HIGH"
+              },
+              {
+                "check": "relocatable_paths_check",
+                "details": "Hardcoded developer paths found: /Users/felipe_gonzalez/Developer/examen_grado",
+                "passed": false,
+                "severity_if_failed": "MEDIUM"
               }
             ],
             "total_checks": 4,
             "total_files_tested": 1
           }
-        }
+        },
+        "evidence_id": "evi-26a1de4288be",
+        "execution_context_hash": "6c7668fe6cdd2bf1206d7518d0c860d67f8f78d9690c4511354d4c5fd1f5a948",
+        "input_hash": "06664838b1208cf80d73cc08e8299393843d2750063d1b1e77f3b1a62d884085",
+        "method_version": "v0.3",
+        "output_hash": "26a1de4288be5bfbe35e6e64ec6711ec2fb9ceac7c68833ff6a460ee62a2ce00",
+        "phase": "verify",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-b3e5f70966b6",
-      "input_hash": "2a1c8723479b5a211520b784e45a95059e68435ab7470fcdc4c6bb3a5284746d",
-      "method_version": "v0.3",
-      "output_hash": "b3e5f70966b65a67bfde2ca32c24101c0c52d114490d4b2c4ef0c2285a181295",
-      "phase": "verify",
-      "producer": "hardening-loop:verify:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.862563+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "AST compilation passed for 1 source file(s)",
-          "Completed verification of 1 file(s) in 0.383ms"
+          "Completed verification of 1 file(s) in 0.927ms"
         ],
-        "duration_ms": 0.45,
-        "error": null,
-        "passed": true
+        "duration_ms": 1.046,
+        "error": "One or more checks failed or raised warnings.",
+        "producer": "hardening-loop:verify:0.1.0-beta",
+        "status": "WARN",
+        "timestamp": "2026-08-21T20:55:00.367244+00:00"
       }
     },
     {
-      "artifact": {
-        "artifact_type": "codify_payload",
-        "path": "/Users/felipe_gonzalez/Developer/hardening-loop/evidence/run-001/codify_artifact.json",
-        "payload": {
+      "canonical_evidence": {
+        "artifact_payload": {
           "admission_record": {
             "admission_status": "PENDING_REVIEW",
             "gate_policy": "NO_AUTO_CANONICAL",
@@ -297,12 +293,12 @@
             {
               "admission_status": "PENDING_REVIEW",
               "candidate_id": "kc-bd0b7d675cba",
-              "created_at": "1970-01-01T00:00:00+00:00",
+              "created_at": "2026-08-21T00:00:00Z",
               "evidence_references": [
-                "evi-f419be2d36a1",
-                "evi-ac3c99f15c78",
-                "evi-fbeaef974e9b",
-                "evi-b3e5f70966b6"
+                "evi-324c01071106",
+                "evi-76ae0347d7b4",
+                "evi-87056d031557",
+                "evi-26a1de4288be"
               ],
               "finding": {
                 "category": "SECURITY",
@@ -330,12 +326,12 @@
             {
               "admission_status": "PENDING_REVIEW",
               "candidate_id": "kc-01ab93723a70",
-              "created_at": "1970-01-01T00:00:00+00:00",
+              "created_at": "2026-08-21T00:00:00Z",
               "evidence_references": [
-                "evi-f419be2d36a1",
-                "evi-ac3c99f15c78",
-                "evi-fbeaef974e9b",
-                "evi-b3e5f70966b6"
+                "evi-324c01071106",
+                "evi-76ae0347d7b4",
+                "evi-87056d031557",
+                "evi-26a1de4288be"
               ],
               "finding": {
                 "category": "SECURITY",
@@ -362,57 +358,73 @@
           ],
           "candidates_count": 2,
           "target": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py"
-        }
+        },
+        "evidence_id": "evi-12e9d7e2fa4b",
+        "execution_context_hash": "6c7668fe6cdd2bf1206d7518d0c860d67f8f78d9690c4511354d4c5fd1f5a948",
+        "input_hash": "6bf33ada468bd0437f9ada4095401b01f3d1a991b721d947fbb730007caf84ca",
+        "method_version": "v0.3",
+        "output_hash": "12e9d7e2fa4bc1dee04e5d940a78ef4971f38b5700555fa1f6c52e2a94c7b6e1",
+        "phase": "codify",
+        "schema_version": "v0.1-beta"
       },
-      "environment_hash": "25e3c1be6f92a643023a05ece17bce1716286618740d4800e34cd2455de54f74",
-      "evidence_id": "evi-70e8461bfa93",
-      "input_hash": "d4bac0719ce9d8e12b5b1ccfd62fe536e45a534ef487278c247acfa8c0724fb9",
-      "method_version": "v0.3",
-      "output_hash": "70e8461bfa9353271a1cf44c2a8cd70460527373f5a3112c878a83e16037eac2",
-      "phase": "codify",
-      "producer": "hardening-loop:codify:0.1.0",
-      "status": "PASS",
-      "timestamp": "2026-08-21T12:03:45.863762+00:00",
-      "verification": {
+      "runtime_receipt": {
         "checks": [
           "Formulated 2 knowledge candidate(s) for admission review",
           "Strict non-canonical invariant enforced: All candidates set to PENDING_REVIEW"
         ],
-        "duration_ms": 0.9,
+        "duration_ms": 0.941,
         "error": null,
-        "passed": true
+        "producer": "hardening-loop:codify:0.1.0-beta",
+        "status": "PASS",
+        "timestamp": "2026-08-21T20:55:00.376571+00:00"
       }
     }
   ],
-  "final_status": "PASS",
+  "runtime_telemetry": {
+    "final_status": "WARN",
+    "peak_memory_mb": 32.34,
+    "phase_durations_ms": {
+      "codify": 9.024,
+      "delete": 10.38,
+      "question": 11.767,
+      "simplify": 8.959,
+      "verify": 9.028
+    },
+    "throughput_loc_per_sec": 2400.4,
+    "timestamp": "2026-08-21T20:55:00.377975+00:00",
+    "total_ast_nodes_visited": 0,
+    "total_duration_ms": 49.158,
+    "total_loc_analyzed": 118
+  },
   "work_unit": {
-    "created_at": "2026-08-21T12:03:45.847329+00:00",
+    "created_at": "2026-08-21T20:55:00.325558+00:00",
     "metadata": {
+      "execution_context_hash": "6c7668fe6cdd2bf1206d7518d0c860d67f8f78d9690c4511354d4c5fd1f5a948",
       "method_version": "v0.3",
       "runner_version": "0.1.0-beta",
       "transition_history": [
         {
           "from": "AUDITING",
           "reason": "Starting hardening run",
-          "timestamp": "2026-08-21T12:03:45.848112+00:00",
+          "timestamp": "2026-08-21T20:55:00.325729+00:00",
           "to": "AUDITING"
         },
         {
           "from": "PATCH_PROPOSED",
           "reason": "Audit and simplification complete",
-          "timestamp": "2026-08-21T12:03:45.862088+00:00",
+          "timestamp": "2026-08-21T20:55:00.358439+00:00",
           "to": "PATCH_PROPOSED"
         },
         {
           "from": "VERIFIED",
-          "reason": "Verification tests passed",
-          "timestamp": "2026-08-21T12:03:45.862829+00:00",
+          "reason": "Verification passed with warnings",
+          "timestamp": "2026-08-21T20:55:00.367756+00:00",
           "to": "VERIFIED"
         },
         {
           "from": "KNOWLEDGE_CANDIDATE",
           "reason": "Knowledge candidates formulated",
-          "timestamp": "2026-08-21T12:03:45.864839+00:00",
+          "timestamp": "2026-08-21T20:55:00.377895+00:00",
           "to": "KNOWLEDGE_CANDIDATE"
         }
       ]
@@ -427,7 +439,7 @@
     "state": "KNOWLEDGE_CANDIDATE",
     "target_hash": "344a8b52f4b841d712529fd652917648f9f7b2125a6784e7ef90a0939baec778",
     "target_path": "/Users/felipe_gonzalez/Developer/hardening-loop/fixtures/qwen-tool-loop.py",
-    "updated_at": "2026-08-21T12:03:45.864839+00:00",
+    "updated_at": "2026-08-21T20:55:00.377895+00:00",
     "work_unit_id": "wu-344a8b52f4b8"
   }
 }

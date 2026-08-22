@@ -32,12 +32,18 @@ dist/
 *~
 .idea/
 .vscode/
+.claude/
 
 # Local Agent & Runtime State
 .atl/
 _ctx/
+.mimosa/
+wiki
 
 # Ephemeral Evidence & Transient Test Dumps
 evidence/self-audit/
 evidence/test-*/
 evidence/tmp-*/
+evidence/run-*/
+evidence/run-[0-9]*/
+!evidence/run-001/

@@ -15,9 +15,9 @@ Implementa operativamente el ciclo de 5 pasos de **Musk / Zechner** integrado co
 
 ## 🏗️ Invariantes de Orden Cero & Filosofía
 
-1. **Prohibición de Auto-Admisión (Leyes VIII y XII):** Ningún agente puede auto-aprobar o promover reglas al estado canónico. Todo aprendizaje exige revisión y firma humana explícita en la [Aduana de Conocimiento](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/admission.py).
+1. **Prohibición de Auto-Admisión (Leyes VIII y XII):** Ningún agente puede auto-aprobar o promover reglas al estado canónico. Todo aprendizaje exige revisión y firma humana explícita en la [Aduana de Conocimiento](src/hardening_loop/admission.py).
 2. **Principio Fail-Closed (Ley VIII):** Si un hash SHA-256 no coincide, un schema JSON falla o un test no pasa, el sistema **aborta inmediatamente** en modo seguro. Cero degradación silenciosa.
-3. **Señales antes que Relato (Ley XI):** Toda mutación produce un [EvidenceEnvelope](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/models.py) inmutable indexado por hashes SHA-256 de entrada y salida. Las explicaciones en lenguaje natural sin evidencia verificable carecen de validez.
+3. **Señales antes que Relato (Ley XI):** Toda mutación produce un [EvidenceEnvelope](src/hardening_loop/models.py) inmutable indexado por hashes SHA-256 de entrada y salida. Las explicaciones en lenguaje natural sin evidencia verificable carecen de validez.
 4. **Anti-Ferrari / Simplicidad (Ley III):** Arquitectura minimalista sin dependencias pesadas ni capas de abstracción ornamentales.
 
 ---
@@ -206,8 +206,8 @@ hardening-loop/
 ## 📜 Gobernanza y Desarrollo Agéntico
 
 Para consultar las leyes constitucionales completas, la metodología **Ask-to-Cole**, el protocolo de comunicación **Cold Re-Entry** y el desacoplamiento **Builder/Driver**, revisá:
-- 📖 [AGENTS.md](file:///Users/felipe_gonzalez/Developer/hardening-loop/AGENTS.md) — Constitución Agéntica y Directrices Operativas.
-- 📐 [docs/spec_v0.1.md](file:///Users/felipe_gonzalez/Developer/hardening-loop/docs/spec_v0.1.md) — Especificación Técnica Formal v0.1.
+- 📖 [AGENTS.md](AGENTS.md) — Constitución Agéntica y Directrices Operativas.
+- 📐 [docs/spec_v0.1.md](docs/spec_v0.1.md) — Especificación Técnica Formal v0.1.
 
 ---
 

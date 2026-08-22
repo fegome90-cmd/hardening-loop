@@ -58,7 +58,7 @@ class KnowledgeAdmissionGate:
             rule_proposal=proposal,
             evidence_references=evidence_references,
             admission_status=AdmissionStatus.PENDING_REVIEW,
-            created_at=created_at or "1970-01-01T00:00:00+00:00",
+            created_at=created_at or utc_now_iso(),
         )
         candidate.validate_schema()
         return candidate
@@ -117,7 +117,7 @@ class KnowledgeAdmissionGate:
             reviewer=raw.get("reviewer"),
             reviewed_at=raw.get("reviewed_at"),
             review_notes=raw.get("review_notes"),
-            created_at=raw.get("created_at", "1970-01-01T00:00:00+00:00"),
+            created_at=raw.get("created_at") or utc_now_iso(),
         )
         candidate.validate_schema()
         return candidate

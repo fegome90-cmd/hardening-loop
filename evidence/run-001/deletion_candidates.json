@@ -2,29 +2,17 @@
   {
     "action": "REPLACE_WITH_STRUCTURED_RUNNER",
     "candidate_id": "DEL-001",
-    "rationale": "Direct invocation of shell binary executes arbitrary shell scripts without token or executable whitelist.",
+    "location": "qwen-tool-loop.py:58",
+    "rationale": "Direct invocation of shell binary or shell=True allows unconstrained command injection.",
     "severity": "HIGH",
     "target": "unconstrained_shell_harness"
   },
   {
     "action": "DELETE_AND_PARAMETERIZE",
     "candidate_id": "DEL-002",
-    "rationale": "Hardcoded developer absolute cwd makes script brittle and non-relocatable.",
+    "location": "qwen-tool-loop.py:61",
+    "rationale": "Hardcoded developer absolute path makes script brittle and non-relocatable.",
     "severity": "MEDIUM",
-    "target": "hardcoded_cwd_string"
-  },
-  {
-    "action": "REPLACE_WITH_SANDBOXED_RESOLVER",
-    "candidate_id": "DEL-003",
-    "rationale": "Arbitrary file reading allows potential directory traversal beyond repo bounds.",
-    "severity": "HIGH",
-    "target": "unsandboxed_open_call"
-  },
-  {
-    "action": "REPLACE_WITH_EVIDENCE_ENVELOPE",
-    "candidate_id": "DEL-004",
-    "rationale": "Direct print statements to sys.stderr lack deterministic evidence logging and hashing.",
-    "severity": "MEDIUM",
-    "target": "unstructured_stderr_logging"
+    "target": "hardcoded_path_string"
   }
 ]
