@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import glob
 import io
 import json
 import os
@@ -510,16 +509,27 @@ def test_t15_knowledge_candidate_yaml_deterministic_ordering(tmp_path):
     assert kc_text.index("finding:") < kc_text.index("rule_proposal:")
 
 
-def test_t16_manifest_fixtures_lifecycle_and_schema_disposition():
-    """T16: All active generated manifest fixtures conform to schema v0.2 while historical fixtures are preserved."""
-    active_manifests = glob.glob("evidence/run-00[3-6]*/evidence_manifest.json")
-    assert len(active_manifests) > 0
+def test_t16_manifest_fixtures_lifecycle_and_schema_disposition(tmp_path):
+    """T16: Generated manifests conform to schema v0.2 while historical fixtures are preserved."""
+    # 1. Verify a freshly generated manifest strictly adheres to v0.2 schema
+    target = tmp_path / "app.py"
+    target.write_text("def ping() -> str:\n    return 'pong'\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_t16"
 
-    for manifest_path in active_manifests:
-        with open(manifest_path, encoding="utf-8") as mf:
-            data = json.load(mf)
-        SchemaValidator.validate_or_raise("hardening_loop_manifest.v0.2", data)
-        assert data["schema_version"] == "hardening-loop.manifest.v0.2"
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner.run_all()
+
+    manifest_path = out_dir / "evidence_manifest.json"
+    assert manifest_path.exists()
+    manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    SchemaValidator.validate_or_raise("hardening_loop_manifest.v0.2", manifest_data)
+    assert manifest_data["schema_version"] == "hardening-loop.manifest.v0.2"
+    assert "canonical_manifest_digest" in manifest_data
+    assert "runtime_telemetry" in manifest_data
+
+    # 2. Historical run-001 evidence is preserved in repository for backwards provenance
+    assert os.path.exists("evidence/run-001/evidence_manifest.json")
 
 
 def test_cli_review_and_validate_strict_utf8_fail_closed(tmp_path):

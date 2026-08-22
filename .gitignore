@@ -44,3 +44,6 @@ wiki
 evidence/self-audit/
 evidence/test-*/
 evidence/tmp-*/
+evidence/run-*/
+evidence/run-[0-9]*/
+!evidence/run-001/
