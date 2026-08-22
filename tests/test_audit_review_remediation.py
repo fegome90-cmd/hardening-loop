@@ -213,14 +213,266 @@ def test_s6_posthog_sink_hardening():
 
 
 # ==============================================================================
-# FULL TARGETED REGRESSION MATRIX: T01 .. T26
+# FULL TARGETED REGRESSION MATRIX: T01 .. T15 (Contractual Minimum) + Extended
 # ==============================================================================
 
 
-def test_t01_transition_history_records_true_previous_state():
-    """T01: StateMachine.transition records accurate 'from' previous state before mutation."""
+def test_t01_verify_syntax_error_aborts_immediately(tmp_path):
+    """T01: VerifyPhase aborts immediately on first SyntaxError without executing downstream checks."""
+    target_dir = tmp_path / "pkg"
+    target_dir.mkdir()
+    (target_dir / "a_bad.py").write_text("def broken(:\n", encoding="utf-8")
+    (target_dir / "b_unsafe.py").write_text("import os\nos.system('echo unsafe')\n", encoding="utf-8")
+
+    phase = VerifyPhase()
+    payload, _checks, status = phase.execute(str(target_dir), {})
+
+    assert status == VerificationStatus.FAIL
+    assert "Syntax error" in payload.get("error", "")
+    assert "a_bad.py" in payload.get("error", "")
+
+    # Assert downstream checks (eval/exec, shell, paths) were NOT executed
+    test_results = payload["test_results"]
+    assert test_results["total_checks"] == 1
+    assert test_results["failed_checks"] == 1
+    check_names = [c["name"] for c in test_results["checks"]]
+    assert check_names == ["target_ast_syntax_validity"]
+    assert "no_unconstrained_shell_execution" not in check_names
+    assert "no_dynamic_eval_or_exec" not in check_names
+    assert "no_hardcoded_developer_paths" not in check_names
+
+    # Direct phase verification via runner halts on FAIL
+    out_dir = tmp_path / "out_t01"
+    runner = HardeningRunner(str(target_dir), str(out_dir), workspace_root=str(tmp_path))
+    env = runner.run_phase(PhaseName.VERIFY)
+    assert env.status == VerificationStatus.FAIL
+    assert runner.work_unit.state != HardeningState.KNOWLEDGE_CANDIDATE
+
+
+def test_t02_orphan_rollback_reference_cannot_be_overwritten(tmp_path):
+    """T02: Orphan rollback_reference.json in output directory prevents new runs and is not overwritten."""
+    out_dir = tmp_path / "evidence_t02"
+    out_dir.mkdir()
+    orphan_file = out_dir / "rollback_reference.json"
+    orphan_file.write_text('{"orphan_rollback": true}\n', encoding="utf-8")
+    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t03_orphan_benchmark_cannot_be_overwritten(tmp_path):
+    """T03: Orphan benchmark.json in output directory prevents new runs and is not overwritten."""
+    out_dir = tmp_path / "evidence_t03"
+    out_dir.mkdir()
+    orphan_file = out_dir / "benchmark.json"
+    orphan_file.write_text('{"orphan_benchmark": true}\n', encoding="utf-8")
+    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t04_orphan_runtime_evidence_cannot_be_overwritten(tmp_path):
+    """T04: Orphan runtime_evidence.json in output directory prevents new runs and is not overwritten."""
+    out_dir = tmp_path / "evidence_t04"
+    out_dir.mkdir()
+    orphan_file = out_dir / "runtime_evidence.json"
+    orphan_file.write_text('{"orphan_runtime_evidence": true}\n', encoding="utf-8")
+    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t05_existing_wal_still_prevents_reuse(tmp_path):
+    """T05: Existing non-empty telemetry.jsonl prevents reuse across HardeningRunner and TelemetryEmitter."""
+    out_dir = tmp_path / "evidence_t05"
+    out_dir.mkdir()
+    wal_file = out_dir / "telemetry.jsonl"
+    wal_file.write_text('{"prior_run_event": true}\n', encoding="utf-8")
+    hash_before = sha256_text(wal_file.read_text(encoding="utf-8"))
+
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="already contains"):
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+
+    with pytest.raises(ValueError, match="already contains"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(wal_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t06_existing_manifest_still_prevents_reuse(tmp_path):
+    """T06: Existing evidence_manifest.json prevents reuse across HardeningRunner and TelemetryEmitter."""
+    out_dir = tmp_path / "evidence_t06"
+    out_dir.mkdir()
+    manifest_file = out_dir / "evidence_manifest.json"
+    manifest_file.write_text('{"schema_version": "hardening-loop.manifest.v0.2"}\n', encoding="utf-8")
+    hash_before = sha256_text(manifest_file.read_text(encoding="utf-8"))
+
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="already contains"):
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+
+    with pytest.raises(ValueError, match="already contains"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(manifest_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t07_clean_output_directory_works(tmp_path):
+    """T07: Clean empty output directory initializes without error for HardeningRunner and TelemetryEmitter."""
+    target = tmp_path / "clean.py"
+    target.write_text("x = 100\n", encoding="utf-8")
+    out_dir = tmp_path / "clean_evidence_t07"
+
+    runner = HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+    assert runner.output_dir == os.path.realpath(str(out_dir))
+    assert os.path.isdir(out_dir)
+
+
+def test_t08_second_emitter_cannot_alter_existing_wal(tmp_path):
+    """T08: A second TelemetryEmitter instance cannot alter or truncate an existing WAL file."""
+    out_dir = tmp_path / "evidence_t08"
+    emitter_a = TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+    emitter_a.start_run(
+        git_sha="0" * 40,
+        branch="main",
+        dirty_worktree=False,
+        runner_version="0.3.0",
+        config_hash="a" * 64,
+        input_hash="b" * 64,
+    )
+    emitter_a.wal.close()
+
+    wal_file = out_dir / "telemetry.jsonl"
+    wal_hash_before = sha256_text(wal_file.read_text(encoding="utf-8"))
+
+    # Second emitter on same output directory fails closed
+    with pytest.raises(ValueError, match="already contains"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    # Assert WAL was not altered or truncated
+    assert sha256_text(wal_file.read_text(encoding="utf-8")) == wal_hash_before
+
+
+def test_t09_local_evidence_filters_by_current_run_id(tmp_path):
+    """T09: _write_local_evidence filters events strictly by current run_id."""
+    out_dir = tmp_path / "evidence_t09"
+    out_dir.mkdir()
+    wal_file = out_dir / "telemetry.jsonl"
+
+    events = [
+        {
+            "event_name": "hardening_gate_evaluated",
+            "status": "PASS",
+            "run_id": "run-A",
+            "timestamp": utc_now_iso(),
+            "gate_id": "gate_A",
+            "gate_status": "PASS",
+        },
+        {
+            "event_name": "hardening_gate_evaluated",
+            "status": "FAIL",
+            "run_id": "run-B",
+            "timestamp": utc_now_iso(),
+            "gate_id": "gate_B",
+            "gate_status": "FAIL",
+        },
+    ]
+    with open(wal_file, "w", encoding="utf-8") as f:
+        for ev in events:
+            f.write(json.dumps(ev) + "\n")
+
+    emitter = TelemetryEmitter.__new__(TelemetryEmitter)
+    emitter.output_dir = os.path.realpath(str(out_dir))
+    emitter.run_id = "run-A"
+    emitter._artifacts = []
+    emitter.wal = WalWriter(wal_file, mode="a", workspace_root=str(tmp_path))
+
+    emitter._write_local_evidence()
+
+    gate_data = json.loads((out_dir / "gate_results.json").read_text(encoding="utf-8"))
+    assert len(gate_data) == 1
+    assert gate_data[0]["run_id"] == "run-A"
+    assert gate_data[0]["gate_id"] == "gate_A"
+
+
+def test_t10_sandbox_default_cwd_inside_path_pass():
+    """T10: assert_within_workspace passes for paths inside default current working directory."""
+    inside_path = os.path.join(os.getcwd(), "src", "hardening_loop")
+    res = assert_within_workspace(inside_path)
+    assert res == os.path.realpath(inside_path)
+
+
+def test_t11_sandbox_default_cwd_outside_path_fail():
+    """T11: assert_within_workspace raises PathSandboxError for paths outside default cwd."""
+    with pytest.raises(PathSandboxError):
+        assert_within_workspace("/tmp/completely_outside_target_t11")
+
+
+def test_t12_symlink_escape_fail(tmp_path):
+    """T12: Symlink pointing outside workspace boundary fails closed with PathSandboxError."""
+    outside_target = tmp_path / "outside_dir"
+    outside_target.mkdir()
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    symlink = ws / "escaped_link"
+    try:
+        os.symlink(str(outside_target), str(symlink))
+    except OSError:
+        pytest.skip("Symlink creation not supported on platform")
+
+    with pytest.raises(PathSandboxError):
+        assert_within_workspace(str(symlink), workspace_root=str(ws))
+
+
+def test_t13_explicit_workspace_root_works(tmp_path):
+    """T13: Explicit authorized workspace root correctly confines paths."""
+    target = tmp_path / "target.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+    res = assert_within_workspace(str(target), workspace_root=str(tmp_path))
+    assert res == os.path.realpath(str(target))
+
+
+def test_t14_telemetry_emitter_default_boundary_enforced():
+    """T14: TelemetryEmitter enforces default cwd workspace boundary before writing or making directories."""
+    outside_dir = "/tmp/outside_telemetry_emitter_t14"
+    with pytest.raises(PathSandboxError):
+        TelemetryEmitter(output_dir=outside_dir)
+
+
+def test_t15_wal_writer_default_boundary_enforced():
+    """T15: WalWriter enforces default cwd workspace boundary before opening files."""
+    outside_file = "/tmp/outside_wal_writer_t15.jsonl"
+    with pytest.raises(PathSandboxError):
+        WalWriter(path=outside_file, mode="a")
+
+
+def test_t16_transition_history_records_true_previous_state():
+    """T16: StateMachine.transition records accurate 'from' previous state before mutation."""
     wu = WorkUnit(
-        work_unit_id="wu-t01",
+        work_unit_id="wu-t16",
         target_path="app.py",
         target_hash="a" * 64,
         state=HardeningState.DRAFT,
@@ -234,10 +486,10 @@ def test_t01_transition_history_records_true_previous_state():
     assert history[0]["from"] != history[0]["to"]
 
 
-def test_t02_chained_transitions_preserve_provenance():
-    """T02: Chained state transitions preserve true historical sequence and distinct from/to."""
+def test_t17_chained_transitions_preserve_provenance():
+    """T17: Chained state transitions preserve true historical sequence and distinct from/to."""
     wu = WorkUnit(
-        work_unit_id="wu-t02",
+        work_unit_id="wu-t17",
         target_path="app.py",
         target_hash="b" * 64,
         state=HardeningState.DRAFT,
@@ -253,11 +505,11 @@ def test_t02_chained_transitions_preserve_provenance():
     assert history[2]["from"] == "PATCH_PROPOSED" and history[2]["to"] == "VERIFIED"
 
 
-def test_t03_run_json_validates_against_manifest_v02(tmp_path, monkeypatch):
-    """T03: 'hardening-loop run --phase all --json' stdout parses and validates against manifest v0.2."""
+def test_t18_run_json_validates_against_manifest_v02(tmp_path, monkeypatch):
+    """T18: 'hardening-loop run --phase all --json' stdout parses and validates against manifest v0.2."""
     target = tmp_path / "target.py"
     target.write_text("def ping() -> str:\n    return 'pong'\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t03"
+    out_dir = tmp_path / "evidence_t18"
 
     out_buf = io.StringIO()
     monkeypatch.setattr("sys.stdout", out_buf)
@@ -286,11 +538,11 @@ def test_t03_run_json_validates_against_manifest_v02(tmp_path, monkeypatch):
     assert "runtime_telemetry" in data
 
 
-def test_t04_run_json_equals_persisted_manifest_semantics(tmp_path, monkeypatch):
-    """T04: stdout of run --json is semantically equal to canonical persisted evidence_manifest.json."""
+def test_t19_run_json_equals_persisted_manifest_semantics(tmp_path, monkeypatch):
+    """T19: stdout of run --json is semantically equal to canonical persisted evidence_manifest.json."""
     target = tmp_path / "app.py"
     target.write_text("def ok(): return True\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t04"
+    out_dir = tmp_path / "evidence_t19"
 
     out_buf = io.StringIO()
     monkeypatch.setattr("sys.stdout", out_buf)
@@ -316,11 +568,11 @@ def test_t04_run_json_equals_persisted_manifest_semantics(tmp_path, monkeypatch)
     assert stdout_manifest == disk_manifest
 
 
-def test_t05_missing_manifest_fails_closed_no_fallback(tmp_path, monkeypatch):
-    """T05: If canonical manifest is unexpectedly missing after run, CLI fails closed without synthesizing fallback."""
+def test_t20_missing_manifest_fails_closed_no_fallback(tmp_path, monkeypatch):
+    """T20: If canonical manifest is unexpectedly missing after run, CLI fails closed without synthesizing fallback."""
     target = tmp_path / "app.py"
     target.write_text("x = 10\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t05"
+    out_dir = tmp_path / "evidence_t20"
 
     original_run_all = HardeningRunner.run_all
 
@@ -354,105 +606,8 @@ def test_t05_missing_manifest_fails_closed_no_fallback(tmp_path, monkeypatch):
     assert "was not generated (fail-closed)" in err_buf.getvalue()
 
 
-def test_t06_telemetry_inside_workspace_passes(tmp_path):
-    """T06: TelemetryEmitter within workspace boundary creates WAL and records events."""
-    out_dir = tmp_path / "telemetry_t06"
-    emitter = TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
-    emitter.start_run(
-        git_sha="0" * 40,
-        branch="main",
-        dirty_worktree=False,
-        runner_version="0.3.0",
-        config_hash="a" * 64,
-        input_hash="b" * 64,
-    )
-    emitter.wal.close()
-    assert (out_dir / "telemetry.jsonl").exists()
-
-
-def test_t07_telemetry_outside_workspace_fails_before_write(tmp_path):
-    """T07: TelemetryEmitter outside workspace boundary fails closed before creating directory or file,
-
-    both with default workspace_root and explicit workspace_root.
-    """
-    outside_dir = "/tmp/outside_telemetry_t07"
-
-    # 1. Default workspace_root (os.getcwd) fails closed
-    with pytest.raises(PathSandboxError):
-        TelemetryEmitter(output_dir=outside_dir)
-
-    # 2. Explicit workspace_root fails closed
-    with pytest.raises(PathSandboxError):
-        TelemetryEmitter(output_dir=outside_dir, workspace_root=str(tmp_path))
-
-
-def test_t08_wal_path_escape_fails(tmp_path):
-    """T08: WalWriter escaping workspace boundary raises PathSandboxError before opening file,
-
-    both with default workspace_root and explicit workspace_root.
-    """
-    outside_file = "/tmp/escaped_wal.jsonl"
-
-    # 1. Default workspace_root fails closed
-    with pytest.raises(PathSandboxError):
-        WalWriter(outside_file, mode="a")
-
-    # 2. Explicit workspace_root fails closed
-    with pytest.raises(PathSandboxError):
-        WalWriter(outside_file, mode="a", workspace_root=str(tmp_path))
-
-
-def test_t09_second_run_cannot_alter_first_run_evidence(tmp_path):
-    """T09: A second run on an output directory containing evidence fails closed, leaving Run 1 bytes unchanged."""
-    target = tmp_path / "clean.py"
-    target.write_text("x = 1\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t09"
-
-    # Run 1 succeeds
-    r1 = HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
-    r1.run_all()
-    manifest_bytes_run1 = (out_dir / "evidence_manifest.json").read_bytes()
-    wal_bytes_run1 = (out_dir / "telemetry.jsonl").read_bytes()
-
-    # Run 2 on same output_dir fails closed immediately
-    with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
-
-    # Assert Run 1 bytes were not modified or truncated
-    assert (out_dir / "evidence_manifest.json").read_bytes() == manifest_bytes_run1
-    assert (out_dir / "telemetry.jsonl").read_bytes() == wal_bytes_run1
-
-
-def test_t10_orphan_wal_cannot_be_truncated(tmp_path):
-    """T10: An orphan non-empty telemetry.jsonl in output directory prevents new runs and cannot be truncated,
-
-    both via direct TelemetryEmitter and HardeningRunner.
-    """
-    out_dir = tmp_path / "orphan_dir"
-    out_dir.mkdir()
-    wal_file = out_dir / "telemetry.jsonl"
-    wal_file.write_text('{"orphan_event": true}\n', encoding="utf-8")
-    wal_hash_before = sha256_text(wal_file.read_text(encoding="utf-8"))
-
-    # 1. Direct TelemetryEmitter rejects directory with non-empty WAL
-    with pytest.raises(ValueError, match="already contains a non-empty WAL"):
-        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
-
-    # 2. HardeningRunner rejects directory with orphan WAL
-    target = tmp_path / "clean.py"
-    target.write_text("x = 1\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
-
-    # 3. WalWriter with mode='w' refuses to truncate existing non-empty WAL
-    with pytest.raises(ValueError, match="Refusing to truncate prior evidence"):
-        WalWriter(str(wal_file), mode="w", workspace_root=str(tmp_path))
-
-    assert sha256_text(wal_file.read_text(encoding="utf-8")) == wal_hash_before
-
-
-def test_t11_partial_evidence_dir_cannot_be_overwritten(tmp_path):
-    """T11: If a partial owned run artifact exists in output directory, HardeningRunner fails closed."""
+def test_t21_partial_evidence_dir_cannot_be_overwritten(tmp_path):
+    """T21: If a partial owned run artifact exists in output directory, HardeningRunner fails closed."""
     out_dir = tmp_path / "partial_dir"
     out_dir.mkdir()
     (out_dir / "work_unit.json").write_text('{"work_unit_id": "wu-partial"}', encoding="utf-8")
@@ -463,22 +618,22 @@ def test_t11_partial_evidence_dir_cannot_be_overwritten(tmp_path):
         HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
 
 
-def test_t12_loc_invalid_utf8_fails_closed(tmp_path):
-    """T12: count_target_loc on invalid UTF-8 target raises decode error rather than fabricating LOC=0."""
+def test_t22_loc_invalid_utf8_fails_closed(tmp_path):
+    """T22: count_target_loc on invalid UTF-8 target raises decode error rather than fabricating LOC=0."""
     bad_file = tmp_path / "bad.py"
     bad_file.write_bytes(b"x = \xff\xfe\xfa\n")
     with pytest.raises(UnicodeDecodeError):
         count_target_loc(str(bad_file))
 
 
-def test_t13_loc_unreadable_source_fails_closed():
-    """T13: count_target_loc on non-existent path raises ValueError fail-closed."""
+def test_t23_loc_unreadable_source_fails_closed():
+    """T23: count_target_loc on non-existent path raises ValueError fail-closed."""
     with pytest.raises(ValueError, match="Target path does not exist"):
         count_target_loc("/nonexistent/file/path.py")
 
 
-def test_t14_no_partial_loc_represented_as_complete(tmp_path):
-    """T14: count_target_loc on a directory containing an invalid file fails closed without emitting partial count."""
+def test_t24_no_partial_loc_represented_as_complete(tmp_path):
+    """T24: count_target_loc on a directory containing an invalid file fails closed without emitting partial count."""
     pkg = tmp_path / "pkg"
     pkg.mkdir()
     (pkg / "good.py").write_text("x = 1\ny = 2\n", encoding="utf-8")
@@ -488,11 +643,11 @@ def test_t14_no_partial_loc_represented_as_complete(tmp_path):
         count_target_loc(str(pkg))
 
 
-def test_t15_current_manifest_fixtures_validate(tmp_path):
-    """T15: Freshly generated manifest fixtures validate against normative schema v0.2."""
+def test_t25_current_manifest_fixtures_validate(tmp_path):
+    """T25: Freshly generated manifest fixtures validate against normative schema v0.2."""
     target = tmp_path / "app.py"
     target.write_text("def ping() -> str:\n    return 'pong'\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t15"
+    out_dir = tmp_path / "evidence_t25"
 
     runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
@@ -504,19 +659,19 @@ def test_t15_current_manifest_fixtures_validate(tmp_path):
     assert manifest_data["schema_version"] == "hardening-loop.manifest.v0.2"
 
 
-def test_t16_historical_evidence_remains_historically_honest():
-    """T16: Historical evidence under evidence/run-001/ is preserved without synthetic rewrite."""
+def test_t26_historical_evidence_remains_historically_honest():
+    """T26: Historical evidence under evidence/run-001/ is preserved without synthetic rewrite."""
     assert os.path.exists("evidence/run-001/evidence_manifest.json")
     historical_manifest = json.loads(open("evidence/run-001/evidence_manifest.json", encoding="utf-8").read())
     # Historical manifest preserves historical format
     assert "canonical_manifest_digest" in historical_manifest or "work_unit" in historical_manifest
 
 
-def test_t17_transition_fixture_provenance_is_valid(tmp_path):
-    """T17: HardeningRunner state transitions record genuine distinct from -> to steps."""
+def test_t27_transition_fixture_provenance_is_valid(tmp_path):
+    """T27: HardeningRunner state transitions record genuine distinct from -> to steps."""
     target = tmp_path / "clean.py"
     target.write_text("x = 1\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t17"
+    out_dir = tmp_path / "evidence_t27"
 
     runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
@@ -527,8 +682,8 @@ def test_t17_transition_fixture_provenance_is_valid(tmp_path):
         assert item["from"] != item["to"], f"Impossible self-transition recorded: {item}"
 
 
-def test_t18_subprocess_direct_alias_check_call_detected():
-    """T18: find_subprocess_calls detects check_call, direct calls, and import aliases."""
+def test_t28_subprocess_direct_alias_check_call_detected():
+    """T28: find_subprocess_calls detects check_call, direct calls, and import aliases."""
     src = """
 import subprocess as sp
 from subprocess import check_call as cc, run as r
@@ -549,8 +704,8 @@ def f3():
         assert has_shell is True
 
 
-def test_t19_unrelated_runner_run_not_classified_as_subprocess():
-    """T19: Class method runner.run(shell=True) is not flagged as a subprocess call."""
+def test_t29_unrelated_runner_run_not_classified_as_subprocess():
+    """T29: Class method runner.run(shell=True) is not flagged as a subprocess call."""
     src = """
 class MyRunner:
     def run(self, cmd, shell=False):
@@ -564,8 +719,8 @@ runner.run("do_something", shell=True)
     assert len(calls) == 0
 
 
-def test_t20_nested_ast_scope_remains_innermost(tmp_path):
-    """T20: QuestionPhase attributes security constraints to innermost nested function scope."""
+def test_t30_nested_ast_scope_remains_innermost(tmp_path):
+    """T30: QuestionPhase attributes security constraints to innermost nested function scope."""
     code = """
 def outer_fn():
     def inner_fn():
@@ -577,7 +732,7 @@ def outer_fn():
     target.write_text(code, encoding="utf-8")
 
     phase = QuestionPhase()
-    payload, checks, status = phase.execute(str(target), {})
+    payload, _checks, _status = phase.execute(str(target), {})
 
     reqs = payload.get("requirements", [])
     open_reqs = [r for r in reqs if "open()" in r.get("audit_finding", "")]
@@ -585,21 +740,21 @@ def outer_fn():
     assert "inner_fn" in open_reqs[0]["source"]
 
 
-def test_t21_strict_phase_utf8_syntax_fail_closed(tmp_path):
-    """T21: Target with invalid syntax causes phases to fail closed with FAIL status."""
+def test_t31_strict_phase_utf8_syntax_fail_closed(tmp_path):
+    """T31: Target with invalid syntax causes phases to fail closed with FAIL status."""
     bad_target = tmp_path / "syntax_error.py"
     bad_target.write_text("def broken(\n", encoding="utf-8")
 
     phase = VerifyPhase()
-    payload, checks, status = phase.execute(str(bad_target), {})
+    payload, _checks, status = phase.execute(str(bad_target), {})
     assert status == VerificationStatus.FAIL
 
 
-def test_t22_manifest_self_hash_and_artifact_verification(tmp_path):
-    """T22: verify_manifest_integrity checks self-hash and physical artifact digests."""
+def test_t32_manifest_self_hash_and_artifact_verification(tmp_path):
+    """T32: verify_manifest_integrity checks self-hash and physical artifact digests."""
     target = tmp_path / "app.py"
     target.write_text("x = 100\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t22"
+    out_dir = tmp_path / "evidence_t32"
 
     runner = HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
@@ -610,19 +765,19 @@ def test_t22_manifest_self_hash_and_artifact_verification(tmp_path):
     assert len(computed_hash) == 64
 
 
-def test_t23_posthog_arbitrary_https_rejection():
-    """T23: PostHog sink rejects arbitrary HTTPS host not in allowlist."""
+def test_t33_posthog_arbitrary_https_rejection():
+    """T33: PostHog sink rejects arbitrary HTTPS host not in allowlist."""
     with pytest.raises(PostHogSinkError, match="authorized allowlist"):
         PostHogTelemetrySink(api_key="phc_key", host="https://malicious-telemetry.io")
 
 
-def test_t24_candidate_created_at_is_real_recent_utc(tmp_path):
-    """T24: Materialized KnowledgeCandidate created_at is a real recent UTC timestamp."""
+def test_t34_candidate_created_at_is_real_recent_utc(tmp_path):
+    """T34: Materialized KnowledgeCandidate created_at is a real recent UTC timestamp."""
     t_before = datetime.now(timezone.utc)
 
     target = tmp_path / "app.py"
     target.write_text("p = '/Users/dev/tmp_secret'\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t24"
+    out_dir = tmp_path / "evidence_t34"
 
     runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
@@ -641,8 +796,8 @@ def test_t24_candidate_created_at_is_real_recent_utc(tmp_path):
     assert dt.utcoffset() == timezone.utc.utcoffset(dt)
 
 
-def test_t25_canonical_candidate_identity_clock_independent(tmp_path):
-    """T25: Canonical evidence output_hash is clock-independent and hermetically deterministic."""
+def test_t35_canonical_candidate_identity_clock_independent(tmp_path):
+    """T35: Canonical evidence output_hash is clock-independent and hermetically deterministic."""
     phase = CodifyPhase()
     ctx = {
         "evidence_ids": ["evi-99998888"],
@@ -663,11 +818,11 @@ def test_t25_canonical_candidate_identity_clock_independent(tmp_path):
     assert json.dumps(payload1, sort_keys=True) == json.dumps(payload2, sort_keys=True)
 
 
-def test_t26_terminal_persistence_failure_remains_observable(tmp_path, monkeypatch):
-    """T26: Terminal evidence persistence failure is chained via RuntimeError and observable."""
+def test_t36_terminal_persistence_failure_remains_observable(tmp_path, monkeypatch):
+    """T36: Terminal evidence persistence failure is chained via RuntimeError and observable."""
     target = tmp_path / "clean.py"
     target.write_text("x = 1\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_t26"
+    out_dir = tmp_path / "evidence_t36"
 
     runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
 

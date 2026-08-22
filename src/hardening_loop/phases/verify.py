@@ -61,26 +61,68 @@ class VerifyPhase(BasePhase):
 
         # 1. AST Validation Check across all files
         t0 = time.perf_counter()
-        ast_errors = []
         parsed_trees: dict[str, ast.Module] = {}
         total_ast_nodes = 0
         total_loc = 0
 
         for path, code in sources.items():
-            total_loc += len(code.splitlines())
+            file_loc = len(code.splitlines())
+            total_loc += file_loc
             try:
                 tree = ast.parse(code, filename=path)
                 parsed_trees[path] = tree
                 total_ast_nodes += len(list(ast.walk(tree)))
             except SyntaxError as e:
-                ast_errors.append(f"Syntax error in {os.path.basename(path)}:{e.lineno}: {e.msg}")
+                err_msg = f"Syntax error in {os.path.basename(path)}:{e.lineno}: {e.msg}"
+                return (
+                    {
+                        "target": target_path,
+                        "error": err_msg,
+                        "file": path,
+                        "line": e.lineno,
+                        "message": e.msg,
+                        "total_files_audited": len(sources),
+                        "total_ast_nodes_visited": total_ast_nodes,
+                        "total_lines_of_code": total_loc,
+                        "test_results": {
+                            "total_checks": 1,
+                            "passed_checks": 0,
+                            "failed_checks": 1,
+                            "checks": [
+                                {
+                                    "name": "target_ast_syntax_validity",
+                                    "passed": False,
+                                    "severity": "CRITICAL",
+                                    "category": "security_safety_check",
+                                    "details": err_msg,
+                                }
+                            ],
+                            "fast_feedback_passed": False,
+                        },
+                        "benchmark": {
+                            "target": target_path,
+                            "meets_fast_feedback_sla": False,
+                            "total_loc": total_loc,
+                        },
+                        "runtime_evidence": {
+                            "total_lines_of_code": total_loc,
+                            "total_ast_nodes_visited": total_ast_nodes,
+                            "status": VerificationStatus.FAIL.value,
+                        },
+                    },
+                    [
+                        f"[FAIL-CLOSED] Verification gate aborted immediately on syntax corruption in {os.path.basename(path)}:{e.lineno} ({e.msg})"
+                    ],
+                    VerificationStatus.FAIL,
+                )
 
-        ast_valid = len(ast_errors) == 0
+        ast_valid = True
         ast_check_result = {
             "name": "target_ast_syntax_validity",
-            "passed": ast_valid,
+            "passed": True,
             "severity": "CRITICAL",
-            "details": f"Parsed {len(sources)} file(s) without syntax errors" if ast_valid else "; ".join(ast_errors),
+            "category": "security_safety_check",
+            "details": f"Parsed {len(sources)} file(s) without syntax errors",
         }
 
         # 2. Dynamic Execution Safety Checks (eval/exec)

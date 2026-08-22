@@ -17,6 +17,28 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+OWNED_RUN_ARTIFACTS: tuple[str, ...] = (
+    "evidence_manifest.json",
+    "telemetry.jsonl",
+    "work_unit.json",
+    "requirements_audit.json",
+    "deletion_candidates.json",
+    "diff.patch",
+    "patch.diff",
+    "rollback_reference.json",
+    "contract_diff.json",
+    "test_results.json",
+    "benchmark.json",
+    "runtime_evidence.json",
+    "knowledge_candidate.yaml",
+    "admission_record.json",
+    "gate_results.json",
+    "decision_records.jsonl",
+    "artifact_hashes.json",
+    "structured.log.jsonl",
+)
+
+
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 

@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from .models import (
+    OWNED_RUN_ARTIFACTS,
     EvidenceEnvelope,
     HardeningState,
     PhaseName,
@@ -79,19 +80,7 @@ class HardeningRunner:
         assert_within_workspace(self.output_dir, self.workspace_root)
         os.makedirs(self.output_dir, exist_ok=True)
 
-        owned_artifacts = (
-            "evidence_manifest.json",
-            "telemetry.jsonl",
-            "work_unit.json",
-            "requirements_audit.json",
-            "deletion_candidates.json",
-            "diff.patch",
-            "contract_diff.json",
-            "test_results.json",
-            "knowledge_candidate.yaml",
-            "admission_record.json",
-        )
-        for art_name in owned_artifacts:
+        for art_name in OWNED_RUN_ARTIFACTS:
             art_path = os.path.join(self.output_dir, art_name)
             if os.path.exists(art_path) and os.path.getsize(art_path) > 0:
                 raise ValueError(
