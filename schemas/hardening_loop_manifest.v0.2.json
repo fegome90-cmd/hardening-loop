@@ -40,6 +40,9 @@
     "dirty_worktree": {
       "type": "boolean"
     },
+    "git_available": {
+      "type": "boolean"
+    },
     "final_status": {
       "enum": [
         "STARTED",

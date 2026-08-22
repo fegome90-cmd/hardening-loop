@@ -1,6 +1,8 @@
 """Base phase interface with cryptographic envelope creation and schema validation."""
 
 import abc
+import ast
+import os
 import time
 from typing import Any
 
@@ -16,6 +18,66 @@ from ..models import (
     utc_now_iso,
 )
 from ..schema_validator import SchemaValidator
+
+
+def is_internal_framework_target(target_path: str) -> bool:
+    """Accurately checks if target_path is the internal hardening_loop framework module."""
+    try:
+        pkg_dir = os.path.realpath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+        target_real = os.path.realpath(target_path)
+        return target_real == pkg_dir or target_real.startswith(pkg_dir + os.sep)
+    except Exception:
+        return False
+
+
+def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
+    """Finds all subprocess invocations in an AST tree, tracking module and function import aliases.
+
+    Covers:
+      - subprocess.run(..., shell=True)
+      - import subprocess as sp; sp.run(..., shell=True)
+      - from subprocess import run; run(..., shell=True)
+      - from subprocess import run as my_run; my_run(..., shell=True)
+      - Ignores arbitrary user objects like runner.run(...)
+
+    Returns:
+        List of (call_node, has_shell_true)
+    """
+    module_aliases = {"subprocess"}
+    func_aliases: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess":
+                    module_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "subprocess":
+                for alias in node.names:
+                    if alias.name in ("run", "Popen", "call", "check_output"):
+                        func_aliases.add(alias.asname or alias.name)
+
+    calls: list[tuple[ast.Call, bool]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            is_subp = False
+            if (
+                isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id in module_aliases
+                and node.func.attr in ("run", "Popen", "call", "check_output")
+            ):
+                is_subp = True
+            elif isinstance(node.func, ast.Name) and node.func.id in func_aliases:
+                is_subp = True
+
+            if is_subp:
+                has_shell_true = any(
+                    kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True
+                    for kw in node.keywords
+                )
+                calls.append((node, has_shell_true))
+    return calls
 
 
 class BasePhase(abc.ABC):

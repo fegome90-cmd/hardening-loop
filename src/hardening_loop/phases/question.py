@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from ..models import PhaseName, RequirementType, VerificationStatus
-from .base import BasePhase
+from .base import BasePhase, find_subprocess_calls
 
 
 class QuestionPhase(BasePhase):
@@ -25,7 +25,8 @@ class QuestionPhase(BasePhase):
             except (UnicodeDecodeError, OSError) as e:
                 errors.append(f"Failed to read {target_path}: {e}")
         elif os.path.isdir(target_path):
-            for root, _, files in os.walk(target_path):
+            for root, dirs, files in os.walk(target_path):
+                dirs.sort()
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
@@ -94,42 +95,34 @@ class QuestionPhase(BasePhase):
                     }
                 )
 
-            # 2. Audit Subprocess Execution Security Constraints
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    if (
-                        isinstance(node.func, ast.Attribute)
-                        and node.func.attr in ("run", "Popen", "check_output", "call")
-                        and isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "subprocess"
-                    ):
-                        scope = self._get_enclosing_scope(tree, node)
-                        has_shell_true = any(
-                            kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True
-                            for kw in node.keywords
-                        )
-                        requirements.append(
-                            {
-                                "id": f"REQ-SEC-{len(requirements) + 1:03d}",
-                                "type": RequirementType.SECURITY_CONSTRAINT.value,
-                                "statement": "Subprocess execution must enforce command whitelisting and avoid unconstrained shell injection.",
-                                "source": f"{fname}:{node.lineno} ({scope})",
-                                "justification_valid": not has_shell_true,
-                                "audit_finding": "Invokes shell=True without command whitelist"
-                                if has_shell_true
-                                else "Subprocess call uses structured argument list",
-                            }
-                        )
+            # 2. Audit Subprocess Execution Security Constraints with alias resolution
+            subp_calls = find_subprocess_calls(tree)
+            for node, has_shell_true in subp_calls:
+                scope = self._get_enclosing_scope(tree, node)
+                requirements.append(
+                    {
+                        "id": f"REQ-SEC-{len(requirements) + 1:03d}",
+                        "type": RequirementType.SECURITY_CONSTRAINT.value,
+                        "statement": "Subprocess execution must enforce command whitelisting and avoid unconstrained shell injection.",
+                        "source": f"{fname}:{node.lineno} ({scope})",
+                        "justification_valid": not has_shell_true,
+                        "audit_finding": "Invokes shell=True without command whitelist"
+                        if has_shell_true
+                        else "Subprocess call uses structured argument list",
+                    }
+                )
 
-                    # 3. Audit File System Boundary Access
-                    elif isinstance(node.func, ast.Name) and node.func.id == "open":
-                        scope = self._get_enclosing_scope(tree, node)
+            # 3. Audit File System Boundary Access
+            for n in ast.walk(tree):
+                if isinstance(n, ast.Call):
+                    if isinstance(n.func, ast.Name) and n.func.id == "open":
+                        scope = self._get_enclosing_scope(tree, n)
                         requirements.append(
                             {
                                 "id": f"REQ-SEC-{len(requirements) + 1:03d}",
                                 "type": RequirementType.SECURITY_CONSTRAINT.value,
                                 "statement": "File reading should be confined to authorized workspace boundaries.",
-                                "source": f"{fname}:{node.lineno} ({scope})",
+                                "source": f"{fname}:{n.lineno} ({scope})",
                                 "justification_valid": True,
                                 "audit_finding": "Standard open() invocation audited",
                             }

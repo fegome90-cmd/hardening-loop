@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from ..models import PhaseName, VerificationStatus, compute_target_hash
-from .base import BasePhase
+from .base import BasePhase, find_subprocess_calls, is_internal_framework_target
 
 
 class DeletePhase(BasePhase):
@@ -26,7 +26,8 @@ class DeletePhase(BasePhase):
             except (UnicodeDecodeError, OSError) as e:
                 errors.append(f"Failed to read {target_path}: {e}")
         elif os.path.isdir(target_path):
-            for root, _, files in os.walk(target_path):
+            for root, dirs, files in os.walk(target_path):
+                dirs.sort()
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
@@ -56,7 +57,7 @@ class DeletePhase(BasePhase):
         total_ast_nodes = 0
         checks.append(f"Scanned {len(sources)} source file(s) for deletion candidates and over-privileged harnesses")
 
-        is_framework_target = "hardening_loop" in target_path or any("hardening_loop" in p for p in sources.keys())
+        is_framework = is_internal_framework_target(target_path)
 
         for path, code in sources.items():
             fname = os.path.basename(path)
@@ -70,81 +71,73 @@ class DeletePhase(BasePhase):
                     VerificationStatus.FAIL,
                 )
 
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    # 1. os.system call
+            # 1. Inspect subprocess calls across all import aliases
+            subp_calls = find_subprocess_calls(tree)
+            for node, has_shell_true in subp_calls:
+                is_shell_binary = False
+                if node.args and isinstance(node.args[0], (ast.List, ast.Tuple)):
+                    for elt in node.args[0].elts:
+                        if isinstance(elt, ast.Constant) and str(elt.value) in (
+                            "/bin/zsh",
+                            "/bin/bash",
+                            "bash",
+                            "zsh",
+                        ):
+                            is_shell_binary = True
+
+                if has_shell_true or is_shell_binary:
+                    deletion_candidates.append(
+                        {
+                            "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
+                            "target": "unconstrained_shell_harness",
+                            "location": f"{fname}:{node.lineno}",
+                            "rationale": "Direct invocation of shell binary or shell=True allows unconstrained command injection.",
+                            "action": "REPLACE_WITH_STRUCTURED_RUNNER",
+                            "severity": "HIGH",
+                        }
+                    )
+
+            for n in ast.walk(tree):
+                if isinstance(n, ast.Call):
+                    # 2. os.system call
                     if (
-                        isinstance(node.func, ast.Attribute)
-                        and node.func.attr == "system"
-                        and isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "os"
+                        isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "system"
+                        and isinstance(n.func.value, ast.Name)
+                        and n.func.value.id == "os"
                     ):
                         deletion_candidates.append(
                             {
                                 "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
                                 "target": "os_system_invocation",
-                                "location": f"{fname}:{node.lineno}",
+                                "location": f"{fname}:{n.lineno}",
                                 "rationale": "Direct invocation of os.system executes unconstrained shell commands.",
                                 "action": "REPLACE_WITH_STRUCTURED_SUBPROCESS",
                                 "severity": "HIGH",
                             }
                         )
 
-                    # 2. subprocess with shell=True or direct /bin/zsh /bin/bash shell wrapper
-                    elif (
-                        isinstance(node.func, ast.Attribute)
-                        and node.func.attr in ("run", "Popen", "call", "check_output")
-                        and isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "subprocess"
-                    ):
-                        has_shell_true = any(
-                            kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True
-                            for kw in node.keywords
-                        )
-                        is_shell_binary = False
-                        if node.args and isinstance(node.args[0], (ast.List, ast.Tuple)):
-                            for elt in node.args[0].elts:
-                                if isinstance(elt, ast.Constant) and str(elt.value) in (
-                                    "/bin/zsh",
-                                    "/bin/bash",
-                                    "bash",
-                                    "zsh",
-                                ):
-                                    is_shell_binary = True
-
-                        if has_shell_true or is_shell_binary:
-                            deletion_candidates.append(
-                                {
-                                    "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
-                                    "target": "unconstrained_shell_harness",
-                                    "location": f"{fname}:{node.lineno}",
-                                    "rationale": "Direct invocation of shell binary or shell=True allows unconstrained command injection.",
-                                    "action": "REPLACE_WITH_STRUCTURED_RUNNER",
-                                    "severity": "HIGH",
-                                }
-                            )
-
                     # 3. Dynamic eval / exec
-                    elif isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec"):
+                    elif isinstance(n.func, ast.Name) and n.func.id in ("eval", "exec"):
                         deletion_candidates.append(
                             {
                                 "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
-                                "target": f"dynamic_{node.func.id}_call",
-                                "location": f"{fname}:{node.lineno}",
-                                "rationale": f"Dynamic execution via {node.func.id}() bypasses static analysis and introduces vulnerabilities.",
+                                "target": f"dynamic_{n.func.id}_call",
+                                "location": f"{fname}:{n.lineno}",
+                                "rationale": f"Dynamic execution via {n.func.id}() bypasses static analysis and introduces vulnerabilities.",
                                 "action": "DELETE_OR_REFACTOR_STATICALLY",
                                 "severity": "CRITICAL",
                             }
                         )
 
-                # 4. Auto-promotion bypass functions (only for framework targets)
-                elif is_framework_target and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if node.name in ("auto_promote", "skip_review", "bypass_gate"):
+                # 4. Auto-promotion bypass functions (strictly for framework internal targets)
+                elif is_framework and isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if n.name in ("auto_promote", "skip_review", "bypass_gate"):
                         deletion_candidates.append(
                             {
                                 "candidate_id": f"DEL-{len(deletion_candidates) + 1:03d}",
-                                "target": f"bypass_method_{node.name}",
-                                "location": f"{fname}:{node.lineno}",
+                                "target": f"bypass_method_{n.name}",
+                                "location": f"{fname}:{n.lineno}",
                                 "rationale": "Knowledge Admission Gate prohibits auto-promotion to canonical without reviewer identity.",
                                 "action": "DELETE_BYPASS_METHOD",
                                 "severity": "CRITICAL",

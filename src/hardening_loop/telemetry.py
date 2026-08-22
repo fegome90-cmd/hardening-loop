@@ -10,6 +10,7 @@ import re
 import resource
 import sys
 import time
+import uuid
 from typing import Any
 
 from .models import utc_now_iso
@@ -222,12 +223,12 @@ def sanitize_event(event: Any) -> dict[str, Any]:
 class WalWriter:
     """Write-ahead log: one deterministic JSON object per line, validated fail-closed."""
 
-    def __init__(self, path: Any) -> None:
+    def __init__(self, path: Any, mode: str = "a") -> None:
         self.path = os.fspath(path)
         directory = os.path.dirname(self.path)
         if directory:
             os.makedirs(directory, exist_ok=True)
-        self._fh = open(self.path, "a", encoding="utf-8")
+        self._fh = open(self.path, mode, encoding="utf-8")
         self._closed = False
 
     def append(self, event: Any) -> None:
@@ -248,6 +249,7 @@ class WalWriter:
     def close(self) -> None:
         if not self._closed:
             self._fh.flush()
+            os.fsync(self._fh.fileno())
             self._fh.close()
             self._closed = True
 
@@ -259,14 +261,19 @@ class WalWriter:
 
 
 class TelemetryEmitter:
-    """Emit validated v0.2 events and a tamper-evident evidence manifest."""
+    """Canonical telemetry lifecycle manager and artifact publisher (Ley XI)."""
 
-    def __init__(self, output_dir: Any, run_id: str, trace_id: str) -> None:
+    def __init__(
+        self,
+        output_dir: Any,
+        run_id: str | None = None,
+        trace_id: str | None = None,
+    ):
         self.output_dir = os.path.realpath(os.fspath(output_dir))
         os.makedirs(self.output_dir, exist_ok=True)
-        self.run_id = run_id
-        self.trace_id = trace_id
-        self.wal = WalWriter(os.path.join(self.output_dir, "telemetry.jsonl"))
+        self.run_id = run_id or f"hl_{uuid.uuid4().hex[:12]}"
+        self.trace_id = trace_id or f"tr_{uuid.uuid4().hex[:16]}"
+        self.wal = WalWriter(os.path.join(self.output_dir, "telemetry.jsonl"), mode="w")
         self._artifacts: list[dict[str, str]] = []
         self._git_sha = "0" * 40
         self._dirty_worktree = False
@@ -490,6 +497,10 @@ class TelemetryEmitter:
             json.dump(manifest, manifest_file, indent=2, sort_keys=True)
             manifest_file.write("\n")
         return manifest
+
+    def close(self) -> None:
+        """Flushes and closes the underlying WAL writer."""
+        self.wal.close()
 
     def _register_artifact_hash(self, path: Any, artifact_type: str) -> dict[str, str]:
         artifact_path = os.path.realpath(os.fspath(path))

@@ -187,7 +187,7 @@ def handle_review(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        with open(file_path, encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         raw_yaml = yaml.safe_load(content)
@@ -384,7 +384,7 @@ def handle_validate(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        with open(file_path, encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         # Load payload from JSON or YAML

@@ -25,7 +25,7 @@ def infer_return_type(fn_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     if fn_node.returns:
         try:
             return ast.unparse(fn_node.returns)
-        except Exception:
+        except (ValueError, TypeError, RecursionError):
             return "Annotated"
 
     return_types: set[str] = set()
@@ -94,7 +94,8 @@ class SimplifyPhase(BasePhase):
             except (UnicodeDecodeError, OSError) as e:
                 errors.append(f"Failed to read {target_path}: {e}")
         elif os.path.isdir(target_path):
-            for root, _, files in os.walk(target_path):
+            for root, dirs, files in os.walk(target_path):
+                dirs.sort()
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
@@ -155,8 +156,8 @@ class SimplifyPhase(BasePhase):
                         {
                             "interface": f"{fname}::{node.name}({', '.join(args)})",
                             "return_type": return_type,
-                            "status": "VALIDATED",
-                            "observation": f"Function contract: ({', '.join(args)}) -> {return_type}",
+                            "status": "ANALYZED",
+                            "observation": f"Inferred contract: ({', '.join(args)}) -> {return_type}",
                             "breaking_change": False,
                         }
                     )
@@ -171,7 +172,7 @@ class SimplifyPhase(BasePhase):
             "functions": functions[:50],
             "contract_analysis": contract_analysis[:50],
             "interface_breaking_changes_detected": 0,
-            "simplification_summary": "All audited functions preserve external contracts and inferred return types.",
+            "simplification_summary": "Audited function signatures and inferred return types without breaking structural syntax.",
         }
         checks.append(f"Audited {len(functions)} functions without introducing interface breaking changes")
         status = VerificationStatus.PASS

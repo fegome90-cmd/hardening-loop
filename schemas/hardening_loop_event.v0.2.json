@@ -24,6 +24,7 @@
     "git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "branch": {"type": "string"},
     "dirty_worktree": {"type": "boolean"},
+    "git_available": {"type": "boolean"},
     "runner_version": {"type": "string"},
     "config_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "input_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

@@ -48,7 +48,7 @@ def aggregate_final_status(envelopes: list[EvidenceEnvelope]) -> str:
 
 
 def count_target_loc(target_path: str) -> int:
-    """Recursively calculates total lines of code across target file(s)."""
+    """Recursively calculates total lines of code across target file(s) with deterministic traversal."""
     if not os.path.exists(target_path):
         return 0
     if os.path.isfile(target_path):
@@ -59,8 +59,9 @@ def count_target_loc(target_path: str) -> int:
             return 0
 
     total = 0
-    for root, _, files in os.walk(target_path):
-        for file in files:
+    for root, dirs, files in os.walk(target_path):
+        dirs.sort()
+        for file in sorted(files):
             if file.endswith(".py"):
                 full_p = os.path.join(root, file)
                 try:
@@ -73,14 +74,6 @@ def count_target_loc(target_path: str) -> int:
 
 class HardeningRunner:
     """Coordinates execution of the Algorithmic Code Hardening Loop."""
-
-    PHASE_MAP: dict[PhaseName, BasePhase] = {
-        PhaseName.QUESTION: QuestionPhase(),
-        PhaseName.DELETE: DeletePhase(),
-        PhaseName.SIMPLIFY: SimplifyPhase(),
-        PhaseName.VERIFY: VerifyPhase(),
-        PhaseName.CODIFY: CodifyPhase(),
-    }
 
     def __init__(self, target_path: str, output_dir: str):
         self.target_path = os.path.abspath(target_path)
@@ -107,6 +100,15 @@ class HardeningRunner:
         self.emitter = TelemetryEmitter(output_dir=self.output_dir, run_id=run_id, trace_id=trace_id)
         self._emitter_run_started = False
 
+        # Instantiate fresh, unshared phase instances per runner
+        self.phases: dict[PhaseName, BasePhase] = {
+            PhaseName.QUESTION: QuestionPhase(),
+            PhaseName.DELETE: DeletePhase(),
+            PhaseName.SIMPLIFY: SimplifyPhase(),
+            PhaseName.VERIFY: VerifyPhase(),
+            PhaseName.CODIFY: CodifyPhase(),
+        }
+
     def _git_context(self) -> dict[str, Any]:
         repo_dir = self.target_path if os.path.isdir(self.target_path) else os.path.dirname(self.target_path) or "."
 
@@ -127,11 +129,13 @@ class HardeningRunner:
                 "git_sha": sha,
                 "branch": branch,
                 "dirty_worktree": bool(porcelain),
+                "git_available": True,
             }
         return {
             "git_sha": "0" * 40,
             "branch": "UNKNOWN",
             "dirty_worktree": False,
+            "git_available": False,
         }
 
     def _ensure_run_started(self) -> None:
@@ -149,7 +153,7 @@ class HardeningRunner:
             self._emitter_run_started = True
 
     def run_phase(self, phase_name: PhaseName, context: dict[str, Any] | None = None) -> EvidenceEnvelope:
-        phase = self.PHASE_MAP.get(phase_name)
+        phase = self.phases.get(phase_name)
         if not phase:
             raise ValueError(f"Unknown phase '{phase_name}'")
 
@@ -280,9 +284,8 @@ class HardeningRunner:
                 json.dump(payload.get("runtime_evidence", {}), f, indent=2, sort_keys=True)
             self.emitter.write_artifact(p3, artifact_type="evidence")
         elif phase_name == PhaseName.CODIFY:
-            # Read full candidates with schema fields (including created_at)
-            codify_phase = self.PHASE_MAP[PhaseName.CODIFY]
-            candidates = getattr(codify_phase, "_last_full_candidates", payload.get("candidates", []))
+            # Read full candidates directly from canonical payload without private mutable state
+            candidates = payload.get("candidates", [])
             p1 = os.path.join(self.output_dir, "knowledge_candidate.yaml")
             with open(p1, "w", encoding="utf-8") as f:
                 yaml.dump(candidates, f, sort_keys=False, allow_unicode=True)
@@ -295,48 +298,51 @@ class HardeningRunner:
 
     def run_all(self) -> list[EvidenceEnvelope]:
         """Executes all 5 hardening phases in sequence with strict Fail-Closed abort on error."""
-        self._ensure_run_started()
-        git_ctx = self._git_context()
+        try:
+            self._ensure_run_started()
+            git_ctx = self._git_context()
 
-        order = [
-            PhaseName.QUESTION,
-            PhaseName.DELETE,
-            PhaseName.SIMPLIFY,
-            PhaseName.VERIFY,
-            PhaseName.CODIFY,
-        ]
-        for phase in order:
-            env = self.run_phase(phase)
-            # Fail-closed (Ley VIII): abort immediately on critical/high verification failure
-            if env.status in (VerificationStatus.FAIL, VerificationStatus.BLOCKED):
-                break
+            order = [
+                PhaseName.QUESTION,
+                PhaseName.DELETE,
+                PhaseName.SIMPLIFY,
+                PhaseName.VERIFY,
+                PhaseName.CODIFY,
+            ]
+            for phase in order:
+                env = self.run_phase(phase)
+                # Fail-closed (Ley VIII): abort immediately on critical/high verification failure
+                if env.status in (VerificationStatus.FAIL, VerificationStatus.BLOCKED):
+                    break
 
-        final_status = aggregate_final_status(self.envelopes)
+            final_status = aggregate_final_status(self.envelopes)
 
-        if final_status == "FAIL":
-            self.emitter.fail_run(
-                status="FAIL",
-                git_sha=git_ctx["git_sha"],
-                branch=git_ctx["branch"],
-                dirty_worktree=git_ctx["dirty_worktree"],
-                runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
-                config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
-                input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
-            )
-        else:
-            self.emitter.complete_run(
-                status=final_status,
-                git_sha=git_ctx["git_sha"],
-                branch=git_ctx["branch"],
-                dirty_worktree=git_ctx["dirty_worktree"],
-                runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
-                config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
-                input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
-            )
+            if final_status == "FAIL":
+                self.emitter.fail_run(
+                    status="FAIL",
+                    git_sha=git_ctx["git_sha"],
+                    branch=git_ctx["branch"],
+                    dirty_worktree=git_ctx["dirty_worktree"],
+                    runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
+                    config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
+                    input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
+                )
+            else:
+                self.emitter.complete_run(
+                    status=final_status,
+                    git_sha=git_ctx["git_sha"],
+                    branch=git_ctx["branch"],
+                    dirty_worktree=git_ctx["dirty_worktree"],
+                    runner_version=str(self.work_unit.metadata.get("runner_version", "0.3.0")),
+                    config_hash=str(self.work_unit.metadata.get("execution_context_hash", sha256_text("cfg"))),
+                    input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
+                )
 
-        # Write unified evidence_manifest.json with single writer and verified integrity hash
-        self._write_manifest(final_status)
-        return self.envelopes
+            # Write unified evidence_manifest.json with single writer and verified integrity hash
+            self._write_manifest(final_status)
+            return self.envelopes
+        finally:
+            self.emitter.close()
 
     def _write_manifest(self, final_status: str) -> dict[str, Any]:
         """Writes the canonical manifest with epistemic blocks, artifact hashes, and telemetry."""

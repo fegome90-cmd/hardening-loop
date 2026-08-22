@@ -92,7 +92,7 @@ El runner genera un manifiesto criptográficamente verificable `evidence_manifes
   "integrity": {
     "hash_algorithm": "sha256",
     "manifest_hash": "...",
-    "artifact_count": 8,
+    "artifact_count": 5,
     "integrity_status": "PASS"
   },
   "canonical_manifest_digest": "...",
@@ -110,6 +110,9 @@ El runner genera un manifiesto criptográficamente verificable `evidence_manifes
   }
 }
 ```
+
+> [!NOTE]
+> **Modelo de Amenazas de Integridad (Anti-Ferrari):** `manifest_hash` proporciona detección determinista de corrupción accidental, inconsistencias internas de serialización y desincronización parcial entre artefactos y el manifiesto. No pretende sustituir firmas asimétricas con manejo de claves privadas (HMAC/PKI) cuando el atacante posee permisos totales de reescritura.
 
 ---
 

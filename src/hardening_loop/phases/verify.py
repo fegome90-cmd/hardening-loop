@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from ..models import PhaseName, VerificationStatus
-from .base import BasePhase
+from .base import BasePhase, find_subprocess_calls, is_internal_framework_target
 
 
 class VerifyPhase(BasePhase):
@@ -26,7 +26,8 @@ class VerifyPhase(BasePhase):
             except (UnicodeDecodeError, OSError) as e:
                 errors.append(f"Failed to read {target_path}: {e}")
         elif os.path.isdir(target_path):
-            for root, _, files in os.walk(target_path):
+            for root, dirs, files in os.walk(target_path):
+                dirs.sort()
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
@@ -99,31 +100,26 @@ class VerifyPhase(BasePhase):
             else "; ".join(eval_exec_calls),
         }
 
-        # 3. Unconstrained Shell Execution Safety Checks (subprocess shell=True / os.system)
+        # 3. Unconstrained Shell Execution Safety Checks with import alias support
         shell_calls = []
         for path, tree in parsed_trees.items():
             fname = os.path.basename(path)
+            # Check os.system calls
             for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    if (
-                        isinstance(node.func, ast.Attribute)
-                        and node.func.attr == "system"
-                        and isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "os"
-                    ):
-                        shell_calls.append(f"{fname}:{node.lineno} invokes os.system()")
-                    elif (
-                        isinstance(node.func, ast.Attribute)
-                        and node.func.attr in ("run", "Popen", "call", "check_output")
-                        and isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "subprocess"
-                    ):
-                        has_shell_true = any(
-                            kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True
-                            for kw in node.keywords
-                        )
-                        if has_shell_true:
-                            shell_calls.append(f"{fname}:{node.lineno} invokes subprocess with shell=True")
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "system"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "os"
+                ):
+                    shell_calls.append(f"{fname}:{node.lineno} invokes os.system()")
+
+            # Check subprocess calls via aliases
+            subp_calls = find_subprocess_calls(tree)
+            for node, has_shell_true in subp_calls:
+                if has_shell_true:
+                    shell_calls.append(f"{fname}:{node.lineno} invokes subprocess with shell=True")
 
         shell_check = {
             "name": "no_unconstrained_shell_execution",
@@ -155,8 +151,7 @@ class VerifyPhase(BasePhase):
         safety_checks = [ast_check_result, eval_exec_check, shell_check, paths_check]
 
         # 5. If self-auditing hardening_loop core, verify framework governance invariants
-        is_framework_target = "hardening_loop" in target_path or any("hardening_loop" in p for p in sources.keys())
-        if is_framework_target:
+        if is_internal_framework_target(target_path):
             combined_code = "\n".join(sources.values())
             has_gate = "KnowledgeAdmissionGate" in combined_code
             has_envelope = "EvidenceEnvelope" in combined_code

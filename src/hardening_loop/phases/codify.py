@@ -11,9 +11,8 @@ from ..models import (
     PhaseName,
     VerificationStatus,
     sha256_text,
-    utc_now_iso,
 )
-from .base import BasePhase
+from .base import BasePhase, is_internal_framework_target
 
 
 def _parse_lines(loc_str: str) -> list[int]:
@@ -25,11 +24,10 @@ def _parse_lines(loc_str: str) -> list[int]:
 
 
 class CodifyPhase(BasePhase):
-    """Packages validated learnings into candidates for human/curator review."""
+    """Packages validated learnings into candidates for human/curator review without shared mutable state."""
 
     def __init__(self):
         super().__init__(name=PhaseName.CODIFY)
-        self._last_full_candidates: list[dict[str, Any]] = []
 
     def execute(
         self, target_path: str, context: dict[str, Any]
@@ -38,7 +36,7 @@ class CodifyPhase(BasePhase):
         evidence_refs = context.get("evidence_ids", [])
         candidates: list[KnowledgeCandidate] = []
 
-        is_self_audit = "hardening_loop" in target_path
+        is_self_audit = is_internal_framework_target(target_path)
 
         if is_self_audit:
             # Self-audit candidate 1: Mandatory Envelope Provenance
@@ -57,7 +55,7 @@ class CodifyPhase(BasePhase):
                     rationale="Hermetic reproducibility requires capturing the exact runtime execution context digest, schema version, and framework version.",
                     evidence_references=evidence_refs,
                     suggested_fix="Include canonical_evidence sub-object with execution_context_hash as required schema properties in evidence_envelope.schema.json.",
-                    created_at=utc_now_iso(),
+                    created_at="1970-01-01T00:00:00Z",
                 )
             )
 
@@ -77,7 +75,7 @@ class CodifyPhase(BasePhase):
                     rationale="The knowledge base remains trustworthy only if all promoted rules have verifiable human/curator provenance.",
                     evidence_references=evidence_refs,
                     suggested_fix="Enforce reviewer.strip() check in KnowledgeAdmissionGate.review_candidate.",
-                    created_at=utc_now_iso(),
+                    created_at="1970-01-01T00:00:00Z",
                 )
             )
         else:
@@ -86,8 +84,8 @@ class CodifyPhase(BasePhase):
             challenged_reqs = context.get("challenged_requirements", [])
             verify_failures = context.get("verify_failures", [])
 
-            # 1. Formulate candidates from deletion findings
-            for idx, dc in enumerate(deletion_candidates, start=1):
+            # 1. Formulate candidates from deletion findings with stable finding-derived IDs
+            for dc in deletion_candidates:
                 target_str = dc.get("target", "unnecessary_harness")
                 loc = dc.get("location", "")
                 rationale = dc.get("rationale", "Dead or overprivileged capability identified.")
@@ -106,7 +104,7 @@ class CodifyPhase(BasePhase):
                     else FindingCategory.DEAD_HARNESS
                 )
 
-                rule_id = f"RULE-DEL-{idx:03d}"
+                rule_id = f"RULE-DEL-{sha256_text(loc + target_str)[:6].upper()}"
                 cid = f"kc-{sha256_text(rule_id + target_str)[:12]}"
                 candidates.append(
                     KnowledgeAdmissionGate.create_candidate(
@@ -122,17 +120,17 @@ class CodifyPhase(BasePhase):
                         rationale=rationale,
                         evidence_references=evidence_refs,
                         suggested_fix=f"Apply recommended action: {action}.",
-                        created_at=utc_now_iso(),
+                        created_at="1970-01-01T00:00:00Z",
                     )
                 )
 
-            # 2. Formulate candidates from challenged requirements (e.g. hardcoded paths)
-            for idx, cr in enumerate(challenged_reqs, start=1):
-                req_id = cr.get("id", f"REQ-{idx}")
+            # 2. Formulate candidates from challenged requirements with stable finding-derived IDs
+            for cr in challenged_reqs:
+                req_id = cr.get("id", "REQ-HIST")
                 stmt = cr.get("statement", "")
                 source = cr.get("source", "")
                 challenge = cr.get("challenge", "Unjustified assumption identified.")
-                rule_id = f"RULE-REQ-{idx:03d}"
+                rule_id = f"RULE-REQ-{sha256_text(source + req_id)[:6].upper()}"
                 cid = f"kc-{sha256_text(rule_id + req_id)[:12]}"
                 candidates.append(
                     KnowledgeAdmissionGate.create_candidate(
@@ -150,15 +148,15 @@ class CodifyPhase(BasePhase):
                         rationale=challenge,
                         evidence_references=evidence_refs,
                         suggested_fix="Inject configuration or environment parameters dynamically.",
-                        created_at=utc_now_iso(),
+                        created_at="1970-01-01T00:00:00Z",
                     )
                 )
 
-            # 3. Formulate candidates from verify safety check failures
-            for idx, vf in enumerate(verify_failures, start=1):
-                chk_name = vf.get("name", f"check_{idx}")
+            # 3. Formulate candidates from verify safety check failures with stable IDs
+            for vf in verify_failures:
+                chk_name = vf.get("name", "check")
                 details = vf.get("details", "Safety invariant violated.")
-                rule_id = f"RULE-VERIFY-{idx:03d}"
+                rule_id = f"RULE-VERIFY-{sha256_text(chk_name)[:6].upper()}"
                 cid = f"kc-{sha256_text(rule_id + chk_name)[:12]}"
                 candidates.append(
                     KnowledgeAdmissionGate.create_candidate(
@@ -174,26 +172,11 @@ class CodifyPhase(BasePhase):
                         rationale=details,
                         evidence_references=evidence_refs,
                         suggested_fix="Ensure all safety checks pass prior to verification gate.",
-                        created_at=utc_now_iso(),
+                        created_at="1970-01-01T00:00:00Z",
                     )
                 )
 
-        self._last_full_candidates = [c.to_dict() for c in candidates]
-
-        # In canonical payload, serialize candidate rule content deterministically (excluding runtime timestamps)
-        canonical_candidates = []
-        for c in candidates:
-            cdict = c.to_dict()
-            canonical_candidates.append(
-                {
-                    "candidate_id": cdict["candidate_id"],
-                    "observation": cdict["observation"],
-                    "finding": cdict["finding"],
-                    "rule_proposal": cdict["rule_proposal"],
-                    "evidence_references": cdict["evidence_references"],
-                    "admission_status": cdict["admission_status"],
-                }
-            )
+        full_candidates = [c.to_dict() for c in candidates]
 
         checks.append(f"Formulated {len(candidates)} knowledge candidate(s) from upstream findings")
         checks.append("Strict non-canonical invariant enforced: All candidates set to PENDING_REVIEW")
@@ -207,7 +190,7 @@ class CodifyPhase(BasePhase):
         payload = {
             "target": target_path,
             "candidates_count": len(candidates),
-            "candidates": canonical_candidates,
+            "candidates": full_candidates,
             "admission_record": {
                 "admission_status": "PENDING_REVIEW" if candidates else "NONE",
                 "gate_policy": "NO_AUTO_CANONICAL",
