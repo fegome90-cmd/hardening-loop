@@ -65,7 +65,9 @@ class VerifyPhase(BasePhase):
         total_ast_nodes = 0
         total_loc = 0
 
+        files_audited = 0
         for path, code in sources.items():
+            files_audited += 1
             file_loc = len(code.splitlines())
             total_loc += file_loc
             try:
@@ -74,6 +76,8 @@ class VerifyPhase(BasePhase):
                 total_ast_nodes += len(list(ast.walk(tree)))
             except SyntaxError as e:
                 err_msg = f"Syntax error in {os.path.basename(path)}:{e.lineno}: {e.msg}"
+                verification_duration_ms = round((time.perf_counter() - t0) * 1000, 3)
+                meets_sla = verification_duration_ms < 5000.0
                 return (
                     {
                         "target": target_path,
@@ -81,7 +85,7 @@ class VerifyPhase(BasePhase):
                         "file": path,
                         "line": e.lineno,
                         "message": e.msg,
-                        "total_files_audited": len(sources),
+                        "total_files_audited": files_audited,
                         "total_ast_nodes_visited": total_ast_nodes,
                         "total_lines_of_code": total_loc,
                         "test_results": {
@@ -97,11 +101,11 @@ class VerifyPhase(BasePhase):
                                     "details": err_msg,
                                 }
                             ],
-                            "fast_feedback_passed": False,
+                            "fast_feedback_passed": meets_sla,
                         },
                         "benchmark": {
                             "target": target_path,
-                            "meets_fast_feedback_sla": False,
+                            "meets_fast_feedback_sla": meets_sla,
                             "total_loc": total_loc,
                         },
                         "runtime_evidence": {

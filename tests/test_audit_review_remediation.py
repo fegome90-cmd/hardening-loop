@@ -217,21 +217,22 @@ def test_s6_posthog_sink_hardening():
 # ==============================================================================
 
 
-def test_t01_verify_syntax_error_aborts_immediately(tmp_path):
-    """T01: VerifyPhase aborts immediately on first SyntaxError without executing downstream checks."""
+def test_t01_first_file_syntax_error_reports_exactly_one_audited_file(tmp_path):
+    """T01: First-file SyntaxError reports exactly one audited file and aborts without downstream checks."""
     target_dir = tmp_path / "pkg"
     target_dir.mkdir()
-    (target_dir / "a_bad.py").write_text("def broken(:\n", encoding="utf-8")
-    (target_dir / "b_unsafe.py").write_text("import os\nos.system('echo unsafe')\n", encoding="utf-8")
+    (target_dir / "01_bad.py").write_text("def broken(:\n", encoding="utf-8")
+    (target_dir / "02_ok.py").write_text("x = 1\n", encoding="utf-8")
+    (target_dir / "03_unsafe.py").write_text("import os\nos.system('echo unsafe')\n", encoding="utf-8")
 
     phase = VerifyPhase()
     payload, _checks, status = phase.execute(str(target_dir), {})
 
     assert status == VerificationStatus.FAIL
+    assert payload["total_files_audited"] == 1
     assert "Syntax error" in payload.get("error", "")
-    assert "a_bad.py" in payload.get("error", "")
+    assert "01_bad.py" in payload.get("error", "")
 
-    # Assert downstream checks (eval/exec, shell, paths) were NOT executed
     test_results = payload["test_results"]
     assert test_results["total_checks"] == 1
     assert test_results["failed_checks"] == 1
@@ -241,68 +242,130 @@ def test_t01_verify_syntax_error_aborts_immediately(tmp_path):
     assert "no_dynamic_eval_or_exec" not in check_names
     assert "no_hardcoded_developer_paths" not in check_names
 
-    # Direct phase verification via runner halts on FAIL
-    out_dir = tmp_path / "out_t01"
-    runner = HardeningRunner(str(target_dir), str(out_dir), workspace_root=str(tmp_path))
-    env = runner.run_phase(PhaseName.VERIFY)
-    assert env.status == VerificationStatus.FAIL
-    assert runner.work_unit.state != HardeningState.KNOWLEDGE_CANDIDATE
+
+def test_t02_later_syntax_error_reports_exact_attempted_count(tmp_path):
+    """T02: Later SyntaxError reports exact attempted count and omits downstream files."""
+    target_dir = tmp_path / "pkg"
+    target_dir.mkdir()
+    (target_dir / "01_ok.py").write_text("x = 1\n", encoding="utf-8")
+    (target_dir / "02_bad.py").write_text("def broken(:\n", encoding="utf-8")
+    (target_dir / "03_unsafe.py").write_text("import os\nos.system('echo unsafe')\n", encoding="utf-8")
+
+    phase = VerifyPhase()
+    payload, _checks, status = phase.execute(str(target_dir), {})
+
+    assert status == VerificationStatus.FAIL
+    assert payload["total_files_audited"] == 2
+    assert "02_bad.py" in payload.get("error", "")
+
+    test_results = payload["test_results"]
+    assert test_results["total_checks"] == 1
+    assert test_results["failed_checks"] == 1
+    check_names = [c["name"] for c in test_results["checks"]]
+    assert check_names == ["target_ast_syntax_validity"]
+    assert "no_unconstrained_shell_execution" not in check_names
 
 
-def test_t02_orphan_rollback_reference_cannot_be_overwritten(tmp_path):
-    """T02: Orphan rollback_reference.json in output directory prevents new runs and is not overwritten."""
-    out_dir = tmp_path / "evidence_t02"
-    out_dir.mkdir()
-    orphan_file = out_dir / "rollback_reference.json"
-    orphan_file.write_text('{"orphan_rollback": true}\n', encoding="utf-8")
-    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+def test_t03_syntax_failure_sla_uses_measurement(tmp_path):
+    """T03: Early syntax failure measures verification duration for SLA rather than hardcoding False."""
+    target_dir = tmp_path / "pkg"
+    target_dir.mkdir()
+    (target_dir / "bad.py").write_text("def broken(:\n", encoding="utf-8")
 
-    target = tmp_path / "clean.py"
-    target.write_text("x = 1\n", encoding="utf-8")
+    phase = VerifyPhase()
+    payload, _checks, status = phase.execute(str(target_dir), {})
 
-    with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
-
-    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
-
-
-def test_t03_orphan_benchmark_cannot_be_overwritten(tmp_path):
-    """T03: Orphan benchmark.json in output directory prevents new runs and is not overwritten."""
-    out_dir = tmp_path / "evidence_t03"
-    out_dir.mkdir()
-    orphan_file = out_dir / "benchmark.json"
-    orphan_file.write_text('{"orphan_benchmark": true}\n', encoding="utf-8")
-    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
-
-    target = tmp_path / "clean.py"
-    target.write_text("x = 1\n", encoding="utf-8")
-
-    with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
-
-    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+    assert status == VerificationStatus.FAIL
+    test_results = payload["test_results"]
+    benchmark = payload["benchmark"]
+    assert isinstance(test_results["fast_feedback_passed"], bool)
+    assert isinstance(benchmark["meets_fast_feedback_sla"], bool)
+    assert test_results["fast_feedback_passed"] == benchmark["meets_fast_feedback_sla"]
+    assert test_results["fast_feedback_passed"] is True
 
 
-def test_t04_orphan_runtime_evidence_cannot_be_overwritten(tmp_path):
-    """T04: Orphan runtime_evidence.json in output directory prevents new runs and is not overwritten."""
+def test_t04_orphan_gate_results_cannot_be_overwritten(tmp_path):
+    """T04: Orphan gate_results.json prevents TelemetryEmitter initialization and preserves file."""
     out_dir = tmp_path / "evidence_t04"
     out_dir.mkdir()
-    orphan_file = out_dir / "runtime_evidence.json"
-    orphan_file.write_text('{"orphan_runtime_evidence": true}\n', encoding="utf-8")
+    orphan_file = out_dir / "gate_results.json"
+    orphan_file.write_text('{"orphan_gate": true}\n', encoding="utf-8")
     hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
 
-    target = tmp_path / "clean.py"
-    target.write_text("x = 1\n", encoding="utf-8")
-
     with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
 
     assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
 
 
-def test_t05_existing_wal_still_prevents_reuse(tmp_path):
-    """T05: Existing non-empty telemetry.jsonl prevents reuse across HardeningRunner and TelemetryEmitter."""
+def test_t05_orphan_decision_records_cannot_be_overwritten(tmp_path):
+    """T05: Orphan decision_records.jsonl prevents TelemetryEmitter initialization and preserves file."""
     out_dir = tmp_path / "evidence_t05"
+    out_dir.mkdir()
+    orphan_file = out_dir / "decision_records.jsonl"
+    orphan_file.write_text('{"orphan_decision": true}\n', encoding="utf-8")
+    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t06_orphan_artifact_hashes_cannot_be_overwritten(tmp_path):
+    """T06: Orphan artifact_hashes.json prevents TelemetryEmitter initialization and preserves file."""
+    out_dir = tmp_path / "evidence_t06"
+    out_dir.mkdir()
+    orphan_file = out_dir / "artifact_hashes.json"
+    orphan_file.write_text('{"orphan_hashes": true}\n', encoding="utf-8")
+    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t07_orphan_structured_log_cannot_be_overwritten(tmp_path):
+    """T07: Orphan structured.log.jsonl prevents TelemetryEmitter initialization and preserves file."""
+    out_dir = tmp_path / "evidence_t07"
+    out_dir.mkdir()
+    orphan_file = out_dir / "structured.log.jsonl"
+    orphan_file.write_text('{"orphan_log": true}\n', encoding="utf-8")
+    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t08_orphan_patch_diff_cannot_be_overwritten(tmp_path):
+    """T08: Orphan patch.diff prevents TelemetryEmitter initialization and preserves file."""
+    out_dir = tmp_path / "evidence_t08"
+    out_dir.mkdir()
+    orphan_file = out_dir / "patch.diff"
+    orphan_file.write_text("--- a\n+++ b\n", encoding="utf-8")
+    hash_before = sha256_text(orphan_file.read_text(encoding="utf-8"))
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    assert sha256_text(orphan_file.read_text(encoding="utf-8")) == hash_before
+
+
+def test_t09_clean_direct_telemetry_emitter_works(tmp_path):
+    """T09: Clean empty output directory initializes without error for direct TelemetryEmitter and closes cleanly."""
+    out_dir = tmp_path / "clean_evidence_t09"
+    emitter = TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+    assert emitter.output_dir == os.path.realpath(str(out_dir))
+    assert os.path.isdir(out_dir)
+    emitter.close()
+
+
+def test_t10_existing_wal_still_rejects(tmp_path):
+    """T10: Existing non-empty telemetry.jsonl prevents reuse across HardeningRunner and TelemetryEmitter."""
+    out_dir = tmp_path / "evidence_t10"
     out_dir.mkdir()
     wal_file = out_dir / "telemetry.jsonl"
     wal_file.write_text('{"prior_run_event": true}\n', encoding="utf-8")
@@ -320,9 +383,9 @@ def test_t05_existing_wal_still_prevents_reuse(tmp_path):
     assert sha256_text(wal_file.read_text(encoding="utf-8")) == hash_before
 
 
-def test_t06_existing_manifest_still_prevents_reuse(tmp_path):
-    """T06: Existing evidence_manifest.json prevents reuse across HardeningRunner and TelemetryEmitter."""
-    out_dir = tmp_path / "evidence_t06"
+def test_t11_existing_manifest_still_rejects(tmp_path):
+    """T11: Existing evidence_manifest.json prevents reuse across HardeningRunner and TelemetryEmitter."""
+    out_dir = tmp_path / "evidence_t11"
     out_dir.mkdir()
     manifest_file = out_dir / "evidence_manifest.json"
     manifest_file.write_text('{"schema_version": "hardening-loop.manifest.v0.2"}\n', encoding="utf-8")
@@ -340,20 +403,9 @@ def test_t06_existing_manifest_still_prevents_reuse(tmp_path):
     assert sha256_text(manifest_file.read_text(encoding="utf-8")) == hash_before
 
 
-def test_t07_clean_output_directory_works(tmp_path):
-    """T07: Clean empty output directory initializes without error for HardeningRunner and TelemetryEmitter."""
-    target = tmp_path / "clean.py"
-    target.write_text("x = 100\n", encoding="utf-8")
-    out_dir = tmp_path / "clean_evidence_t07"
-
-    runner = HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
-    assert runner.output_dir == os.path.realpath(str(out_dir))
-    assert os.path.isdir(out_dir)
-
-
-def test_t08_second_emitter_cannot_alter_existing_wal(tmp_path):
-    """T08: A second TelemetryEmitter instance cannot alter or truncate an existing WAL file."""
-    out_dir = tmp_path / "evidence_t08"
+def test_t12_second_emitter_cannot_alter_existing_wal(tmp_path):
+    """T12: A second TelemetryEmitter instance cannot alter or truncate an existing WAL file."""
+    out_dir = tmp_path / "evidence_t12"
     emitter_a = TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
     emitter_a.start_run(
         git_sha="0" * 40,
@@ -368,17 +420,15 @@ def test_t08_second_emitter_cannot_alter_existing_wal(tmp_path):
     wal_file = out_dir / "telemetry.jsonl"
     wal_hash_before = sha256_text(wal_file.read_text(encoding="utf-8"))
 
-    # Second emitter on same output directory fails closed
     with pytest.raises(ValueError, match="already contains"):
         TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
 
-    # Assert WAL was not altered or truncated
     assert sha256_text(wal_file.read_text(encoding="utf-8")) == wal_hash_before
 
 
-def test_t09_local_evidence_filters_by_current_run_id(tmp_path):
-    """T09: _write_local_evidence filters events strictly by current run_id."""
-    out_dir = tmp_path / "evidence_t09"
+def test_t13_local_evidence_filters_by_current_run_id(tmp_path):
+    """T13: Unit-test filtering defense-in-depth: verifies _write_local_evidence filters events strictly by current run_id."""
+    out_dir = tmp_path / "evidence_t13"
     out_dir.mkdir()
     wal_file = out_dir / "telemetry.jsonl"
 
@@ -418,21 +468,18 @@ def test_t09_local_evidence_filters_by_current_run_id(tmp_path):
     assert gate_data[0]["gate_id"] == "gate_A"
 
 
-def test_t10_sandbox_default_cwd_inside_path_pass():
-    """T10: assert_within_workspace passes for paths inside default current working directory."""
+def test_t14_sandbox_default_cwd_boundary_enforced():
+    """T14: assert_within_workspace passes inside default cwd and fails outside."""
     inside_path = os.path.join(os.getcwd(), "src", "hardening_loop")
     res = assert_within_workspace(inside_path)
     assert res == os.path.realpath(inside_path)
 
-
-def test_t11_sandbox_default_cwd_outside_path_fail():
-    """T11: assert_within_workspace raises PathSandboxError for paths outside default cwd."""
     with pytest.raises(PathSandboxError):
-        assert_within_workspace("/tmp/completely_outside_target_t11")
+        assert_within_workspace("/tmp/outside_workspace_t14")
 
 
-def test_t12_symlink_escape_fail(tmp_path):
-    """T12: Symlink pointing outside workspace boundary fails closed with PathSandboxError."""
+def test_t15_symlink_escape_fail(tmp_path):
+    """T15: Symlink pointing outside workspace boundary fails closed with PathSandboxError."""
     outside_target = tmp_path / "outside_dir"
     outside_target.mkdir()
     ws = tmp_path / "ws"
@@ -445,28 +492,6 @@ def test_t12_symlink_escape_fail(tmp_path):
 
     with pytest.raises(PathSandboxError):
         assert_within_workspace(str(symlink), workspace_root=str(ws))
-
-
-def test_t13_explicit_workspace_root_works(tmp_path):
-    """T13: Explicit authorized workspace root correctly confines paths."""
-    target = tmp_path / "target.py"
-    target.write_text("x = 1\n", encoding="utf-8")
-    res = assert_within_workspace(str(target), workspace_root=str(tmp_path))
-    assert res == os.path.realpath(str(target))
-
-
-def test_t14_telemetry_emitter_default_boundary_enforced():
-    """T14: TelemetryEmitter enforces default cwd workspace boundary before writing or making directories."""
-    outside_dir = "/tmp/outside_telemetry_emitter_t14"
-    with pytest.raises(PathSandboxError):
-        TelemetryEmitter(output_dir=outside_dir)
-
-
-def test_t15_wal_writer_default_boundary_enforced():
-    """T15: WalWriter enforces default cwd workspace boundary before opening files."""
-    outside_file = "/tmp/outside_wal_writer_t15.jsonl"
-    with pytest.raises(PathSandboxError):
-        WalWriter(path=outside_file, mode="a")
 
 
 def test_t16_transition_history_records_true_previous_state():

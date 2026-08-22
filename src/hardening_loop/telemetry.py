@@ -13,7 +13,7 @@ import time
 import uuid
 from typing import Any
 
-from .models import utc_now_iso
+from .models import OWNED_RUN_ARTIFACTS, utc_now_iso
 from .sandbox import assert_within_workspace
 
 # ---------------------------------------------------------------------------
@@ -282,18 +282,15 @@ class TelemetryEmitter:
         self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
         assert_within_workspace(self.output_dir, self.workspace_root)
 
+        for art_name in OWNED_RUN_ARTIFACTS:
+            art_path = os.path.join(self.output_dir, art_name)
+            if os.path.exists(art_path) and os.path.getsize(art_path) > 0:
+                raise ValueError(
+                    f"Output directory '{self.output_dir}' already contains evidence ({art_name}) from a prior run. "
+                    "Specify a clean output directory to prevent mixing or destroying evidence."
+                )
+
         wal_path = os.path.join(self.output_dir, "telemetry.jsonl")
-        if os.path.exists(wal_path) and os.path.getsize(wal_path) > 0:
-            raise ValueError(
-                f"Output directory '{self.output_dir}' already contains a non-empty WAL ('telemetry.jsonl'). "
-                "Specify a clean output directory to prevent mixing or destroying evidence."
-            )
-        manifest_path = os.path.join(self.output_dir, "evidence_manifest.json")
-        if os.path.exists(manifest_path) and os.path.getsize(manifest_path) > 0:
-            raise ValueError(
-                f"Output directory '{self.output_dir}' already contains an evidence manifest. "
-                "Specify a clean output directory to prevent mixing or destroying evidence."
-            )
 
         os.makedirs(self.output_dir, exist_ok=True)
         self.run_id = run_id or f"hl_{uuid.uuid4().hex[:12]}"

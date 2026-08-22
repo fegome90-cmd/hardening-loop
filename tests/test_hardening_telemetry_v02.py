@@ -123,14 +123,14 @@ def test_wal_writes_readable_jsonl(tmp_path: Path) -> None:
 
 def test_manifest_generates_sha256_hashes(tmp_path: Path) -> None:
     telemetry = telemetry_module()
-    artifact = tmp_path / "patch.diff"
-    artifact.write_text("diff --git a/x b/x\n", encoding="utf-8")
     emitter = telemetry.TelemetryEmitter(
         output_dir=tmp_path,
         run_id=RUN_ID,
         trace_id=TRACE_ID,
         workspace_root=str(tmp_path),
     )
+    artifact = tmp_path / "patch.diff"
+    artifact.write_text("diff --git a/x b/x\n", encoding="utf-8")
     emitter.write_artifact(artifact, artifact_type="patch")
     emitter.write_manifest(final_status="PASS")
 
