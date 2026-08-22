@@ -1,7 +1,7 @@
 # Plan: Corrección Integral de Verify, Findings AST, Fail-Closed y Portabilidad
 
-> **Fecha:** 2026-08-21  
-> **Metodología:** Ask-to-Cole (PRP + TDD Red-Green + 3-Tier Verification)  
+> **Fecha:** 2026-08-21
+> **Metodología:** Ask-to-Cole (PRP + TDD Red-Green + 3-Tier Verification)
 > **SSOT Plan:** `docs/plans/2026-08-21-fix-verify-findings-and-portability.md`
 
 ---

@@ -1,13 +1,13 @@
 # Arquitectura de Loops en Prime Agent & Transferencia Tecnológica a Hardening Loop
 
-> **Documento Normativo & Especificación Arquitectónica Exhaustiva (v2.0 — Deep Hardened)**  
-> **Fecha:** 21 de Agosto de 2026  
-> **Autoría / Rol:** Senior AI Systems Architect & Hardening Core Team  
-> **Fuentes Primarias (SSOT):**  
-> - Wiki de Orquestación W2 (`vault/orchestration-wiki/references/prime-agent/`, `systems/qwen-harness-optimizations.md`)  
-> - Repositorio oficial Prime Agent (`PrimeIntellect-ai/prime-agent`)  
-> - Implementación de referencia de seguridad [`qwen_safe_prime_agent.py`](file:///Users/felipe_gonzalez/.codex/skills/qwen-safe-prime-agent/scripts/qwen_safe_prime_agent.py)  
-> - Código base de [`hardening-loop`](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/)  
+> **Documento Normativo & Especificación Arquitectónica Exhaustiva (v2.0 — Deep Hardened)**
+> **Fecha:** 21 de Agosto de 2026
+> **Autoría / Rol:** Senior AI Systems Architect & Hardening Core Team
+> **Fuentes Primarias (SSOT):**
+> - Wiki de Orquestación W2 (`vault/orchestration-wiki/references/prime-agent/`, `systems/qwen-harness-optimizations.md`)
+> - Repositorio oficial Prime Agent (`PrimeIntellect-ai/prime-agent`)
+> - Implementación de referencia de seguridad [`qwen_safe_prime_agent.py`](file:///Users/felipe_gonzalez/.codex/skills/qwen-safe-prime-agent/scripts/qwen_safe_prime_agent.py)
+> - Código base de [`hardening-loop`](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/)
 > **Estado:** `ESTABLE / ESPECIFICACIÓN NORMATIVA VINCULANTE`
 
 ---

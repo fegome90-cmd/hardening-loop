@@ -4,8 +4,8 @@
 
 El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinista para código generado por modelos de lenguaje (LLM) y sistemas agénticos, basado en los principios de ingeniería de Zechner y el algoritmo de 5 pasos de Musk:
 
-> "El agente permanece simple.  
-> El entorno acumula aprendizaje.  
+> "El agente permanece simple.
+> El entorno acumula aprendizaje.
 > La evidencia decide qué conocimiento sobrevive."
 
 ### Invariantes Constitucionales (AGENTS.md)
@@ -119,16 +119,16 @@ El runner genera un manifiesto criptográficamente verificable `evidence_manifes
 ## 5. Modelo de Estados y Transiciones
 
 ```text
-[DRAFT] 
+[DRAFT]
    │ (Inicio de auditoría / Canonical Directory Digest)
    ▼
-[AUDITING] 
+[AUDITING]
    │ (Ejecución de fases question, delete, simplify)
    ▼
-[PATCH_PROPOSED] 
+[PATCH_PROPOSED]
    │ (Suite de verificación y checks de seguridad AST en VerifyPhase)
    ▼
-[VERIFIED] 
+[VERIFIED]
    │ (Generación de KnowledgeCandidate en CodifyPhase)
    ▼
 [KNOWLEDGE_CANDIDATE] (Estado: PENDING_REVIEW)
