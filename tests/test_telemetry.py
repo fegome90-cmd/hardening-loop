@@ -3,7 +3,7 @@
 import io
 import json
 import os
-import tempfile
+import shutil
 from contextlib import redirect_stdout
 
 from hardening_loop.cli import main
@@ -29,7 +29,9 @@ def test_telemetry_collector_records_phases():
 def test_runner_emits_complete_telemetry_manifest():
     """`HardeningRunner.run_all` populates comprehensive `runtime_telemetry`."""
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fixtures", "qwen-tool-loop.py"))
-    with tempfile.TemporaryDirectory() as out_dir:
+    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "evidence", "tmp_telem_man"))
+    os.makedirs(out_dir, exist_ok=True)
+    try:
         main(["run", "--target", target, "--phase", "all", "--output", out_dir, "-q"])
         manifest_file = os.path.join(out_dir, "evidence_manifest.json")
         assert os.path.exists(manifest_file)
@@ -49,12 +51,16 @@ def test_runner_emits_complete_telemetry_manifest():
         assert "throughput_loc_per_sec" in telemetry
         assert "peak_memory_mb" in telemetry
         assert telemetry["total_loc_analyzed"] > 0
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)
 
 
 def test_cli_telemetry_subcommand_json_and_table():
     """`hardening-loop telemetry <dir>` outputs structured metrics."""
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fixtures", "qwen-tool-loop.py"))
-    with tempfile.TemporaryDirectory() as out_dir:
+    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "evidence", "tmp_telem_sub"))
+    os.makedirs(out_dir, exist_ok=True)
+    try:
         main(["run", "--target", target, "--phase", "all", "--output", out_dir, "-q"])
 
         # JSON output test
@@ -75,3 +81,5 @@ def test_cli_telemetry_subcommand_json_and_table():
         output = f_text.getvalue()
         assert "=== Hardening Loop Telemetry & Observability Report ===" in output
         assert "Throughput" in output
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)

@@ -3,7 +3,7 @@
 import io
 import json
 import os
-import tempfile
+import shutil
 from contextlib import redirect_stdout
 
 from hardening_loop.cli import main
@@ -82,7 +82,9 @@ def test_export_dry_run_mode():
 def test_cli_telemetry_posthog_dry_run():
     """`hardening-loop telemetry <dir> --posthog --dry-run --json` outputs PostHog batch."""
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fixtures", "qwen-tool-loop.py"))
-    with tempfile.TemporaryDirectory() as out_dir:
+    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "evidence", "tmp_ph_dry_run"))
+    os.makedirs(out_dir, exist_ok=True)
+    try:
         main(["run", "--target", target, "--phase", "all", "--output", out_dir, "-q"])
 
         f_json = io.StringIO()
@@ -92,3 +94,5 @@ def test_cli_telemetry_posthog_dry_run():
         data = json.loads(f_json.getvalue().strip())
         assert data["status"] == "DRY_RUN"
         assert data["events_count"] == 6  # 1 run + 5 phases
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)

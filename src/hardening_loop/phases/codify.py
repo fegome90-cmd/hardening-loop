@@ -1,5 +1,6 @@
 """Phase 5: CODIFY VALIDATED LEARNING — Structure candidate rules dynamically from upstream verified findings."""
 
+import re
 from typing import Any
 
 from ..admission import KnowledgeAdmissionGate
@@ -13,6 +14,14 @@ from ..models import (
     utc_now_iso,
 )
 from .base import BasePhase
+
+
+def _parse_lines(loc_str: str) -> list[int]:
+    """Extracts line numbers from location strings like 'mod.py:42'."""
+    match = re.search(r":(\d+)", str(loc_str))
+    if match:
+        return [int(match.group(1))]
+    return [1]
 
 
 class CodifyPhase(BasePhase):
@@ -72,43 +81,102 @@ class CodifyPhase(BasePhase):
                 )
             )
         else:
-            # External target candidates formulated from actual findings
-            cid_ext1 = f"kc-{sha256_text('RULE-SEC-001')[:12]}"
-            cid_ext2 = f"kc-{sha256_text('RULE-SEC-002')[:12]}"
-            candidates.append(
-                KnowledgeAdmissionGate.create_candidate(
-                    candidate_id=cid_ext1,
-                    observation="Target tool wrapper invokes bash via generic shell without enforcing an explicit executable whitelist.",
-                    category=FindingCategory.SECURITY,
-                    severity=FindingSeverity.HIGH,
-                    finding_description="Generic subprocess execution without token/command whitelist exposes runner to arbitrary command injection.",
-                    target_lines=[53, 54, 58, 59],
-                    rule_id="RULE-SEC-001",
-                    rule_title="Mandatory Executable Whitelist for Tool Call Runners",
-                    enforcement_mechanism="CONTRACT_VALIDATOR",
-                    rationale="LLM tool agents must not be granted open shell access; commands must be validated against an approved executable set.",
-                    evidence_references=evidence_refs,
-                    suggested_fix="Introduce an explicit set of allowed binaries (e.g. {'git', 'pytest', 'make'}) before subprocess invocation.",
-                    created_at=utc_now_iso(),
+            # Dynamically formulate candidates from ACTUAL upstream findings
+            deletion_candidates = context.get("deletion_candidates", [])
+            challenged_reqs = context.get("challenged_requirements", [])
+            verify_failures = context.get("verify_failures", [])
+
+            # 1. Formulate candidates from deletion findings
+            for idx, dc in enumerate(deletion_candidates, start=1):
+                target_str = dc.get("target", "unnecessary_harness")
+                loc = dc.get("location", "")
+                rationale = dc.get("rationale", "Dead or overprivileged capability identified.")
+                action = dc.get("action", "DELETE_OR_REFACTOR")
+                sev_str = dc.get("severity", "MEDIUM")
+                severity = (
+                    FindingSeverity.CRITICAL
+                    if sev_str == "CRITICAL"
+                    else FindingSeverity.HIGH
+                    if sev_str == "HIGH"
+                    else FindingSeverity.MEDIUM
                 )
-            )
-            candidates.append(
-                KnowledgeAdmissionGate.create_candidate(
-                    candidate_id=cid_ext2,
-                    observation="Target read tool accesses filesystem paths directly without verifying workspace root containment.",
-                    category=FindingCategory.SECURITY,
-                    severity=FindingSeverity.HIGH,
-                    finding_description="Arbitrary path reading allows directory traversal outside workspace.",
-                    target_lines=[68, 69, 71],
-                    rule_id="RULE-SEC-002",
-                    rule_title="Workspace Path Sandboxing for Read Tools",
-                    enforcement_mechanism="SCHEMA_GUARD",
-                    rationale="Prevent leakage of credentials and sensitive dotfiles outside project scope.",
-                    evidence_references=evidence_refs,
-                    suggested_fix="Resolve paths with os.path.realpath and assert startswith(workspace_root).",
-                    created_at=utc_now_iso(),
+                category = (
+                    FindingCategory.SECURITY
+                    if "shell" in target_str or "eval" in target_str or "exec" in target_str
+                    else FindingCategory.DEAD_HARNESS
                 )
-            )
+
+                rule_id = f"RULE-DEL-{idx:03d}"
+                cid = f"kc-{sha256_text(rule_id + target_str)[:12]}"
+                candidates.append(
+                    KnowledgeAdmissionGate.create_candidate(
+                        candidate_id=cid,
+                        observation=f"Audited target contains {target_str} at {loc}.",
+                        category=category,
+                        severity=severity,
+                        finding_description=rationale,
+                        target_lines=_parse_lines(loc),
+                        rule_id=rule_id,
+                        rule_title=f"Eliminate {target_str} in favor of safe structured alternatives",
+                        enforcement_mechanism="CONTRACT_VALIDATOR",
+                        rationale=rationale,
+                        evidence_references=evidence_refs,
+                        suggested_fix=f"Apply recommended action: {action}.",
+                        created_at=utc_now_iso(),
+                    )
+                )
+
+            # 2. Formulate candidates from challenged requirements (e.g. hardcoded paths)
+            for idx, cr in enumerate(challenged_reqs, start=1):
+                req_id = cr.get("id", f"REQ-{idx}")
+                stmt = cr.get("statement", "")
+                source = cr.get("source", "")
+                challenge = cr.get("challenge", "Unjustified assumption identified.")
+                rule_id = f"RULE-REQ-{idx:03d}"
+                cid = f"kc-{sha256_text(rule_id + req_id)[:12]}"
+                candidates.append(
+                    KnowledgeAdmissionGate.create_candidate(
+                        candidate_id=cid,
+                        observation=f"Challenged requirement {req_id} at {source}: {stmt}",
+                        category=FindingCategory.SECURITY
+                        if "path" in stmt.lower()
+                        else FindingCategory.UNCLEAR_INTERFACE,
+                        severity=FindingSeverity.MEDIUM,
+                        finding_description=challenge,
+                        target_lines=_parse_lines(source),
+                        rule_id=rule_id,
+                        rule_title=f"Remediate challenged requirement {req_id}",
+                        enforcement_mechanism="SCHEMA_GUARD",
+                        rationale=challenge,
+                        evidence_references=evidence_refs,
+                        suggested_fix="Inject configuration or environment parameters dynamically.",
+                        created_at=utc_now_iso(),
+                    )
+                )
+
+            # 3. Formulate candidates from verify safety check failures
+            for idx, vf in enumerate(verify_failures, start=1):
+                chk_name = vf.get("name", f"check_{idx}")
+                details = vf.get("details", "Safety invariant violated.")
+                rule_id = f"RULE-VERIFY-{idx:03d}"
+                cid = f"kc-{sha256_text(rule_id + chk_name)[:12]}"
+                candidates.append(
+                    KnowledgeAdmissionGate.create_candidate(
+                        candidate_id=cid,
+                        observation=f"Verification safety check '{chk_name}' failed: {details}",
+                        category=FindingCategory.SECURITY,
+                        severity=FindingSeverity.CRITICAL if vf.get("severity") == "CRITICAL" else FindingSeverity.HIGH,
+                        finding_description=details,
+                        target_lines=[1],
+                        rule_id=rule_id,
+                        rule_title=f"Enforce safety invariant for {chk_name}",
+                        enforcement_mechanism="TEST_FIXTURE",
+                        rationale=details,
+                        evidence_references=evidence_refs,
+                        suggested_fix="Ensure all safety checks pass prior to verification gate.",
+                        created_at=utc_now_iso(),
+                    )
+                )
 
         self._last_full_candidates = [c.to_dict() for c in candidates]
 
@@ -127,17 +195,23 @@ class CodifyPhase(BasePhase):
                 }
             )
 
-        checks.append(f"Formulated {len(candidates)} knowledge candidate(s) for admission review")
+        checks.append(f"Formulated {len(candidates)} knowledge candidate(s) from upstream findings")
         checks.append("Strict non-canonical invariant enforced: All candidates set to PENDING_REVIEW")
+
+        admission_msg = (
+            "Candidates must be reviewed using 'hardening-loop review <file> --admit' before becoming canonical knowledge."
+            if candidates
+            else "No actionable findings detected in audited target."
+        )
 
         payload = {
             "target": target_path,
             "candidates_count": len(candidates),
             "candidates": canonical_candidates,
             "admission_record": {
-                "admission_status": "PENDING_REVIEW",
+                "admission_status": "PENDING_REVIEW" if candidates else "NONE",
                 "gate_policy": "NO_AUTO_CANONICAL",
-                "message": "Candidates must be reviewed using 'hardening-loop review <file> --admit' before becoming canonical knowledge.",
+                "message": admission_msg,
             },
         }
 

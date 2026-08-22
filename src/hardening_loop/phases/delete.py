@@ -16,19 +16,26 @@ class DeletePhase(BasePhase):
     def __init__(self):
         super().__init__(name=PhaseName.DELETE)
 
-    def _collect_sources(self, target_path: str) -> dict[str, str]:
+    def _collect_sources(self, target_path: str) -> tuple[dict[str, str], list[str]]:
         sources = {}
+        errors = []
         if os.path.isfile(target_path):
-            with open(target_path, encoding="utf-8", errors="replace") as f:
-                sources[target_path] = f.read()
+            try:
+                with open(target_path, encoding="utf-8") as f:
+                    sources[target_path] = f.read()
+            except (UnicodeDecodeError, OSError) as e:
+                errors.append(f"Failed to read {target_path}: {e}")
         elif os.path.isdir(target_path):
             for root, _, files in os.walk(target_path):
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
-                        with open(full_path, encoding="utf-8", errors="replace") as f:
-                            sources[full_path] = f.read()
-        return sources
+                        try:
+                            with open(full_path, encoding="utf-8") as f:
+                                sources[full_path] = f.read()
+                        except (UnicodeDecodeError, OSError) as e:
+                            errors.append(f"Failed to read {full_path}: {e}")
+        return sources, errors
 
     def execute(
         self, target_path: str, context: dict[str, Any]
@@ -37,7 +44,14 @@ class DeletePhase(BasePhase):
         if not os.path.exists(target_path):
             return {"error": f"Target {target_path} not found"}, ["Target missing"], VerificationStatus.FAIL
 
-        sources = self._collect_sources(target_path)
+        sources, read_errors = self._collect_sources(target_path)
+        if read_errors:
+            return (
+                {"error": f"Failed to read sources: {'; '.join(read_errors)}"},
+                ["Source reading error (fail-closed)"],
+                VerificationStatus.FAIL,
+            )
+
         deletion_candidates: list[dict[str, Any]] = []
         total_ast_nodes = 0
         checks.append(f"Scanned {len(sources)} source file(s) for deletion candidates and over-privileged harnesses")
@@ -49,8 +63,12 @@ class DeletePhase(BasePhase):
             try:
                 tree = ast.parse(code, filename=path)
                 total_ast_nodes += len(list(ast.walk(tree)))
-            except SyntaxError:
-                continue
+            except SyntaxError as e:
+                return (
+                    {"error": f"Syntax error in {path}:{e.lineno}: {e.msg}"},
+                    [f"AST parse failed in {fname}"],
+                    VerificationStatus.FAIL,
+                )
 
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
@@ -73,11 +91,11 @@ class DeletePhase(BasePhase):
                         )
 
                     # 2. subprocess with shell=True or direct /bin/zsh /bin/bash shell wrapper
-                    elif isinstance(node.func, ast.Attribute) and node.func.attr in (
-                        "run",
-                        "Popen",
-                        "call",
-                        "check_output",
+                    elif (
+                        isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ("run", "Popen", "call", "check_output")
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "subprocess"
                     ):
                         has_shell_true = any(
                             kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True

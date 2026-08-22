@@ -16,19 +16,26 @@ class VerifyPhase(BasePhase):
     def __init__(self):
         super().__init__(name=PhaseName.VERIFY)
 
-    def _collect_sources(self, target_path: str) -> dict[str, str]:
+    def _collect_sources(self, target_path: str) -> tuple[dict[str, str], list[str]]:
         sources = {}
+        errors = []
         if os.path.isfile(target_path):
-            with open(target_path, encoding="utf-8", errors="replace") as f:
-                sources[target_path] = f.read()
+            try:
+                with open(target_path, encoding="utf-8") as f:
+                    sources[target_path] = f.read()
+            except (UnicodeDecodeError, OSError) as e:
+                errors.append(f"Failed to read {target_path}: {e}")
         elif os.path.isdir(target_path):
             for root, _, files in os.walk(target_path):
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
-                        with open(full_path, encoding="utf-8", errors="replace") as f:
-                            sources[full_path] = f.read()
-        return sources
+                        try:
+                            with open(full_path, encoding="utf-8") as f:
+                                sources[full_path] = f.read()
+                        except (UnicodeDecodeError, OSError) as e:
+                            errors.append(f"Failed to read {full_path}: {e}")
+        return sources, errors
 
     def execute(
         self, target_path: str, context: dict[str, Any]
@@ -41,7 +48,14 @@ class VerifyPhase(BasePhase):
                 VerificationStatus.FAIL,
             )
 
-        sources = self._collect_sources(target_path)
+        sources, read_errors = self._collect_sources(target_path)
+        if read_errors:
+            return (
+                {"error": f"Failed to read sources: {'; '.join(read_errors)}"},
+                ["Source reading error (fail-closed)"],
+                VerificationStatus.FAIL,
+            )
+
         checks.append(f"Loaded {len(sources)} source file(s) for verification gate")
 
         # 1. AST Validation Check across all files
@@ -98,11 +112,11 @@ class VerifyPhase(BasePhase):
                         and node.func.value.id == "os"
                     ):
                         shell_calls.append(f"{fname}:{node.lineno} invokes os.system()")
-                    elif isinstance(node.func, ast.Attribute) and node.func.attr in (
-                        "run",
-                        "Popen",
-                        "call",
-                        "check_output",
+                    elif (
+                        isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ("run", "Popen", "call", "check_output")
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "subprocess"
                     ):
                         has_shell_true = any(
                             kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True
@@ -200,7 +214,7 @@ class VerifyPhase(BasePhase):
             },
             "benchmark": {
                 "target": target_path,
-                "meets_fast_feedback_sla": True,
+                "meets_fast_feedback_sla": verification_duration_ms < 5000.0,
                 "total_loc": total_loc,
             },
             "runtime_evidence": {

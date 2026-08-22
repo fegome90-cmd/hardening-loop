@@ -19,6 +19,7 @@ from .posthog_sink import PostHogSinkError, PostHogTelemetrySink
 from .runner import HardeningRunner, aggregate_final_status
 from .sandbox import PathSandboxError, assert_within_workspace
 from .schema_validator import SchemaValidationError, SchemaValidator
+from .telemetry import verify_manifest_integrity
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -267,11 +268,24 @@ def handle_inspect(args: argparse.Namespace) -> int:
         tamper_detected = False
         tamper_details: list[str] = []
 
-        # 1. Validate each envelope against normative JSON Schema if present
+        # 1. Validate manifest against normative JSON schema
+        try:
+            SchemaValidator.validate_or_raise("hardening_loop_manifest.v0.2", manifest)
+        except SchemaValidationError as e:
+            tamper_detected = True
+            tamper_details.append(f"Manifest schema validation violation: {e}")
+
+        # 2. Cryptographically verify manifest integrity hash over the entire document
+        is_hash_valid, hash_msg = verify_manifest_integrity(manifest)
+        if not is_hash_valid:
+            tamper_detected = True
+            tamper_details.append(hash_msg)
+
+        # 3. Validate each envelope against normative JSON Schema if present
         for env in envelopes:
             SchemaValidator.validate_or_raise("evidence_envelope", env)
 
-        # 2. Recalculate canonical manifest digest over envelopes if present
+        # 4. Recalculate canonical manifest digest over envelopes if present
         if envelopes:
             canonical_blocks = [env["canonical_evidence"] for env in envelopes]
             calculated_digest = sha256_dict({"phases": canonical_blocks})
@@ -283,13 +297,28 @@ def handle_inspect(args: argparse.Namespace) -> int:
         else:
             calculated_digest = expected_digest or ""
 
-        # 3. Physically verify every artifact file on disk against its SHA-256 digest (Ley XI & Ley VIII)
+        # 5. Physically verify every artifact file on disk against its SHA-256 digest (Ley XI & Ley VIII)
         verified_artifacts_count = 0
-        if artifacts:
+        if not artifacts:
+            tamper_detected = True
+            tamper_details.append("Manifest contains no registered artifacts (artifacts list missing or empty)")
+        else:
+            ev_real = os.path.realpath(evidence_dir)
             for art in artifacts:
                 rel_path = art.get("path", "")
                 expected_sha = art.get("sha256", "")
-                full_art_path = os.path.join(evidence_dir, rel_path)
+
+                # Path traversal and escaping verification
+                if not rel_path or rel_path.startswith("/") or ".." in rel_path.split("/") or "\\" in rel_path:
+                    tamper_detected = True
+                    tamper_details.append(f"Unsafe artifact path '{rel_path}' escapes evidence boundary")
+                    continue
+
+                full_art_path = os.path.realpath(os.path.join(evidence_dir, rel_path))
+                if os.path.commonpath((full_art_path, ev_real)) != ev_real:
+                    tamper_detected = True
+                    tamper_details.append(f"Artifact path '{rel_path}' escapes evidence directory boundary")
+                    continue
 
                 if not os.path.exists(full_art_path):
                     tamper_detected = True
@@ -309,20 +338,6 @@ def handle_inspect(args: argparse.Namespace) -> int:
                 except OSError as e:
                     tamper_detected = True
                     tamper_details.append(f"Failed to read artifact '{rel_path}': {e}")
-
-        # Also verify core artifact files if no explicit artifacts list
-        else:
-            core_files = [
-                "requirements_audit.json",
-                "deletion_candidates.json",
-                "contract_diff.json",
-                "test_results.json",
-                "knowledge_candidate.yaml",
-            ]
-            for cf in core_files:
-                cf_path = os.path.join(evidence_dir, cf)
-                if os.path.exists(cf_path):
-                    verified_artifacts_count += 1
 
         report = {
             "evidence_dir": evidence_dir,

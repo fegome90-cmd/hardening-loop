@@ -122,6 +122,31 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
         raise EventValidationError("Invalid v0.2 telemetry manifest: " + details)
 
 
+def compute_manifest_hash(manifest: dict[str, Any]) -> str:
+    """Computes deterministic SHA-256 integrity digest over a manifest with manifest_hash=''."""
+    canonical_copy = copy.deepcopy(manifest)
+    if "integrity" in canonical_copy:
+        canonical_copy["integrity"]["manifest_hash"] = ""
+    canonical = json.dumps(canonical_copy, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def verify_manifest_integrity(manifest: dict[str, Any]) -> tuple[bool, str]:
+    """Verifies that manifest['integrity']['manifest_hash'] matches the recalculated digest.
+
+    Returns:
+        Tuple of (is_valid, detail_message)
+    """
+    integrity = manifest.get("integrity", {})
+    expected = integrity.get("manifest_hash", "")
+    if not expected:
+        return False, "Missing integrity.manifest_hash in manifest"
+    actual = compute_manifest_hash(manifest)
+    if actual != expected:
+        return False, f"Manifest integrity hash mismatch: expected {expected}, calculated {actual}"
+    return True, actual
+
+
 def _check_sha256_fields(event: dict[str, Any]) -> None:
     for key, value in event.items():
         if not isinstance(value, str):
@@ -397,10 +422,15 @@ class TelemetryEmitter:
 
     def write_manifest(
         self,
-        final_status: str = "PASS",
+        final_status: str,
         artifacts: list[Any] | None = None,
         git_sha: str | None = None,
         dirty_worktree: bool | None = None,
+        branch: str | None = None,
+        canonical_manifest_digest: str | None = None,
+        work_unit: dict[str, Any] | None = None,
+        envelopes: list[dict[str, Any]] | None = None,
+        runtime_telemetry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if artifacts is not None:
             for artifact in artifacts:
@@ -442,17 +472,23 @@ class TelemetryEmitter:
                 "integrity_status": "PASS",
             },
         }
-        canonical_copy = copy.deepcopy(manifest)
-        canonical_copy["integrity"]["manifest_hash"] = ""
-        canonical = json.dumps(canonical_copy, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
-        manifest["integrity"]["manifest_hash"] = hashlib.sha256(canonical).hexdigest()
+        if branch is not None:
+            manifest["branch"] = branch
+        if canonical_manifest_digest is not None:
+            manifest["canonical_manifest_digest"] = canonical_manifest_digest
+        if work_unit is not None:
+            manifest["work_unit"] = work_unit
+        if envelopes is not None:
+            manifest["envelopes"] = envelopes
+        if runtime_telemetry is not None:
+            manifest["runtime_telemetry"] = runtime_telemetry
+
+        manifest["integrity"]["manifest_hash"] = compute_manifest_hash(manifest)
         _validate_manifest(manifest)
         manifest_path = os.path.join(self.output_dir, "evidence_manifest.json")
-        manifest_bytes = (
-            json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-        ).encode()
         with open(manifest_path, "w", encoding="utf-8") as manifest_file:
-            manifest_file.write(manifest_bytes.decode())
+            json.dump(manifest, manifest_file, indent=2, sort_keys=True)
+            manifest_file.write("\n")
         return manifest
 
     def _register_artifact_hash(self, path: Any, artifact_type: str) -> dict[str, str]:

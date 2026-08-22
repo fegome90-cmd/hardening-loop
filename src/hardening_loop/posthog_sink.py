@@ -40,16 +40,26 @@ class PostHogTelemetrySink:
         parsed = urllib.parse.urlparse(host)
         if parsed.scheme not in ("http", "https"):
             raise PostHogSinkError(f"Invalid PostHog host scheme '{parsed.scheme}': must be https://")
-        if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"):
-            raise PostHogSinkError("HTTP is only permitted for localhost/127.0.0.1 in PostHog host configuration.")
-        return host
+
+        # Local testing with http is permitted ONLY for localhost / 127.0.0.1
+        if parsed.scheme == "http":
+            if parsed.hostname not in ("localhost", "127.0.0.1"):
+                raise PostHogSinkError("HTTP is only permitted for localhost/127.0.0.1 in PostHog host configuration.")
+            return host
+
+        # For HTTPS hosts: strictly enforce ALLOWED_HOSTS allowlist
+        clean_host = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+        if clean_host not in cls.ALLOWED_HOSTS:
+            raise PostHogSinkError(
+                f"[FAIL-CLOSED] Untrusted PostHog host '{clean_host}'. Must be in authorized allowlist: {sorted(cls.ALLOWED_HOSTS)}"
+            )
+        return clean_host
 
     @staticmethod
     def _sanitize_target_path(path: str) -> str:
         """Sanitizes local absolute paths to avoid leaking filesystem and username details."""
         if not path:
             return ""
-        # If it contains absolute developer paths, emit sanitized digest or basename
         if path.startswith(("/", "C:\\", "\\\\")):
             fname = os.path.basename(path)
             path_digest = sha256_text(path)[:12]

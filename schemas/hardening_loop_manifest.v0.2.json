@@ -34,6 +34,9 @@
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
     },
+    "branch": {
+      "type": "string"
+    },
     "dirty_worktree": {
       "type": "boolean"
     },
@@ -48,6 +51,19 @@
         "ABORTED",
         "ERROR"
       ]
+    },
+    "canonical_manifest_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "work_unit": {
+      "type": "object"
+    },
+    "envelopes": {
+      "type": "array"
+    },
+    "runtime_telemetry": {
+      "type": "object"
     },
     "artifacts": {
       "type": "array",

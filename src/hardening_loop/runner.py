@@ -1,4 +1,6 @@
-"""Hardening Loop Orchestrator — Executes phases and emits deterministic evidence packages."""
+"""Hardening Loop Execution Runner — Minimal orchestration of the 5-phase algorithmic loop."""
+
+from __future__ import annotations
 
 import json
 import os
@@ -18,51 +20,54 @@ from .models import (
     sha256_dict,
     sha256_text,
 )
-from .phases import (
-    BasePhase,
-    CodifyPhase,
-    DeletePhase,
-    QuestionPhase,
-    SimplifyPhase,
-    VerifyPhase,
-)
+from .phases.base import BasePhase
+from .phases.codify import CodifyPhase
+from .phases.delete import DeletePhase
+from .phases.question import QuestionPhase
+from .phases.simplify import SimplifyPhase
+from .phases.verify import VerifyPhase
 from .states import StateMachine
 from .telemetry import TelemetryCollector, TelemetryEmitter
 
 
 def aggregate_final_status(envelopes: list[EvidenceEnvelope]) -> str:
-    """Computes monotonic final status with strict precedence: FAIL/BLOCKED > WARN > PASS."""
+    """Monotonically aggregates envelope statuses under strict fail-closed precedence.
+
+    Hierarchy: FAIL / BLOCKED / ERROR > WARN > PASS.
+    A single FAIL turns the entire run to FAIL.
+    """
     if not envelopes:
-        return "UNKNOWN"
-    statuses = {e.status for e in envelopes}
+        return "FAIL"
+
+    statuses = [e.status for e in envelopes]
     if any(s in (VerificationStatus.FAIL, VerificationStatus.BLOCKED) for s in statuses):
         return "FAIL"
-    if VerificationStatus.WARN in statuses:
+    if any(s == VerificationStatus.WARN for s in statuses):
         return "WARN"
-    if all(s == VerificationStatus.PASS for s in statuses):
-        return "PASS"
-    return "WARN"
+    return "PASS"
 
 
 def count_target_loc(target_path: str) -> int:
-    """Counts total lines of code in target file or recursive python files in directory."""
+    """Recursively calculates total lines of code across target file(s)."""
     if not os.path.exists(target_path):
         return 0
     if os.path.isfile(target_path):
         try:
-            with open(target_path, encoding="utf-8", errors="replace") as f:
+            with open(target_path, encoding="utf-8") as f:
                 return len(f.readlines())
         except Exception:
             return 0
+
     total = 0
     for root, _, files in os.walk(target_path):
-        for file in sorted(files):
+        for file in files:
             if file.endswith(".py"):
+                full_p = os.path.join(root, file)
                 try:
-                    with open(os.path.join(root, file), encoding="utf-8", errors="replace") as f:
+                    with open(full_p, encoding="utf-8") as f:
                         total += len(f.readlines())
                 except Exception:
-                    pass
+                    continue
     return total
 
 
@@ -103,7 +108,7 @@ class HardeningRunner:
         self._emitter_run_started = False
 
     def _git_context(self) -> dict[str, Any]:
-        repo_dir = os.path.dirname(self.target_path) or "."
+        repo_dir = self.target_path if os.path.isdir(self.target_path) else os.path.dirname(self.target_path) or "."
 
         def _git(*args: str) -> str | None:
             try:
@@ -117,10 +122,16 @@ class HardeningRunner:
         sha = _git("rev-parse", "HEAD")
         branch = _git("rev-parse", "--abbrev-ref", "HEAD")
         porcelain = _git("status", "--porcelain")
+        if sha and len(sha) == 40 and branch:
+            return {
+                "git_sha": sha,
+                "branch": branch,
+                "dirty_worktree": bool(porcelain),
+            }
         return {
-            "git_sha": sha if sha and len(sha) == 40 else "0" * 40,
-            "branch": branch or "main",
-            "dirty_worktree": bool(porcelain),
+            "git_sha": "0" * 40,
+            "branch": "UNKNOWN",
+            "dirty_worktree": False,
         }
 
     def _ensure_run_started(self) -> None:
@@ -150,8 +161,32 @@ class HardeningRunner:
         self.telemetry.start_phase(phase_name.value)
         self.emitter.start_phase(phase_name.value)
 
-        ctx = context or {}
+        ctx = context.copy() if context else {}
         ctx["evidence_ids"] = [e.evidence_id for e in self.envelopes]
+
+        deletion_candidates: list[dict[str, Any]] = []
+        challenged_requirements: list[dict[str, Any]] = []
+        verify_failures: list[dict[str, Any]] = []
+        for env in self.envelopes:
+            payload = env.canonical.artifact_payload
+            if env.phase == PhaseName.DELETE:
+                deletion_candidates.extend(payload.get("deletion_candidates", []))
+            elif env.phase == PhaseName.QUESTION:
+                for req in payload.get("requirements", []):
+                    if not req.get("justification_valid", True):
+                        challenged_requirements.append(req)
+            elif env.phase == PhaseName.VERIFY:
+                for chk in payload.get("test_results", {}).get("checks", []):
+                    if not chk.get("passed", True):
+                        verify_failures.append(chk)
+
+        if "deletion_candidates" not in ctx:
+            ctx["deletion_candidates"] = deletion_candidates
+        if "challenged_requirements" not in ctx:
+            ctx["challenged_requirements"] = challenged_requirements
+        if "verify_failures" not in ctx:
+            ctx["verify_failures"] = verify_failures
+
         envelope = phase.run(self.target_path, ctx, self.output_dir)
         self.envelopes.append(envelope)
         self.work_unit.phases_executed.append(phase_name.value)
@@ -299,7 +334,7 @@ class HardeningRunner:
                 input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
             )
 
-        # Write unified evidence_manifest.json with integrity hashes and telemetry
+        # Write unified evidence_manifest.json with single writer and verified integrity hash
         self._write_manifest(final_status)
         return self.envelopes
 
@@ -311,22 +346,23 @@ class HardeningRunner:
         telemetry_summary = self.telemetry.get_summary()
         telemetry_summary["final_status"] = final_status
 
-        # Write work unit state
-        with open(os.path.join(self.output_dir, "work_unit.json"), "w", encoding="utf-8") as f:
+        # Write work unit state and register artifact
+        wu_path = os.path.join(self.output_dir, "work_unit.json")
+        with open(wu_path, "w", encoding="utf-8") as f:
             json.dump(self.work_unit.to_dict(), f, indent=2, sort_keys=True)
-        self.emitter.write_artifact(os.path.join(self.output_dir, "work_unit.json"), artifact_type="work_unit")
+        self.emitter.write_artifact(wu_path, artifact_type="work_unit")
 
-        # Use emitter to flush WAL and compute physical artifact hashes
-        manifest = self.emitter.write_manifest(final_status=final_status)
+        git_ctx = self._git_context()
 
-        # Add backward-compatible and epistemic metadata fields to manifest
-        manifest["canonical_manifest_digest"] = canonical_manifest_digest
-        manifest["work_unit"] = self.work_unit.to_dict()
-        manifest["envelopes"] = [e.to_dict() for e in self.envelopes]
-        manifest["runtime_telemetry"] = telemetry_summary
-
-        manifest_path = os.path.join(self.output_dir, "evidence_manifest.json")
-        with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2, sort_keys=True)
-
+        # Emit single unified manifest covering all fields in manifest_hash and schema validation
+        manifest = self.emitter.write_manifest(
+            final_status=final_status,
+            git_sha=git_ctx["git_sha"],
+            branch=git_ctx["branch"],
+            dirty_worktree=git_ctx["dirty_worktree"],
+            canonical_manifest_digest=canonical_manifest_digest,
+            work_unit=self.work_unit.to_dict(),
+            envelopes=[e.to_dict() for e in self.envelopes],
+            runtime_telemetry=telemetry_summary,
+        )
         return manifest

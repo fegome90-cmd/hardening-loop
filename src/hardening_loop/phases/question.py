@@ -15,19 +15,26 @@ class QuestionPhase(BasePhase):
     def __init__(self):
         super().__init__(name=PhaseName.QUESTION)
 
-    def _collect_sources(self, target_path: str) -> dict[str, str]:
+    def _collect_sources(self, target_path: str) -> tuple[dict[str, str], list[str]]:
         sources = {}
+        errors = []
         if os.path.isfile(target_path):
-            with open(target_path, encoding="utf-8", errors="replace") as f:
-                sources[target_path] = f.read()
+            try:
+                with open(target_path, encoding="utf-8") as f:
+                    sources[target_path] = f.read()
+            except (UnicodeDecodeError, OSError) as e:
+                errors.append(f"Failed to read {target_path}: {e}")
         elif os.path.isdir(target_path):
             for root, _, files in os.walk(target_path):
                 for file in sorted(files):
                     if file.endswith(".py"):
                         full_path = os.path.join(root, file)
-                        with open(full_path, encoding="utf-8", errors="replace") as f:
-                            sources[full_path] = f.read()
-        return sources
+                        try:
+                            with open(full_path, encoding="utf-8") as f:
+                                sources[full_path] = f.read()
+                        except (UnicodeDecodeError, OSError) as e:
+                            errors.append(f"Failed to read {full_path}: {e}")
+        return sources, errors
 
     @staticmethod
     def _get_enclosing_scope(tree: ast.AST, target_node: ast.AST) -> str:
@@ -49,7 +56,14 @@ class QuestionPhase(BasePhase):
                 VerificationStatus.FAIL,
             )
 
-        sources = self._collect_sources(target_path)
+        sources, read_errors = self._collect_sources(target_path)
+        if read_errors:
+            return (
+                {"error": f"Failed to read sources: {'; '.join(read_errors)}"},
+                ["Source reading error (fail-closed)"],
+                VerificationStatus.FAIL,
+            )
+
         requirements: list[dict[str, Any]] = []
         total_ast_nodes = 0
         checks.append(f"Parsed {len(sources)} source file(s) for requirements extraction")
@@ -59,8 +73,12 @@ class QuestionPhase(BasePhase):
             try:
                 tree = ast.parse(code, filename=path)
                 total_ast_nodes += len(list(ast.walk(tree)))
-            except SyntaxError:
-                continue
+            except SyntaxError as e:
+                return (
+                    {"error": f"Syntax error in {path}:{e.lineno}: {e.msg}"},
+                    [f"AST parse failed in {fname}"],
+                    VerificationStatus.FAIL,
+                )
 
             # 1. Audit explicit requirements (docstrings)
             docstring = ast.get_docstring(tree)
