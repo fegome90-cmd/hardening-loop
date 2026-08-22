@@ -5,6 +5,7 @@ import importlib
 import json
 import re
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import patch
 
 import jsonschema
@@ -38,7 +39,7 @@ def make_event(event_name: str = "hardening_run_started", **overrides: object) -
     return event
 
 
-def telemetry_module():
+def telemetry_module() -> ModuleType:
     return importlib.import_module("hardening_loop.telemetry")
 
 
@@ -183,14 +184,14 @@ def test_prohibited_properties_are_removed_or_rejected() -> None:
 
 def test_synthetic_complete_run_writes_wal_and_manifest(tmp_path: Path) -> None:
     telemetry = telemetry_module()
-    patch_file = tmp_path / "patch.diff"
-    patch_file.write_text("", encoding="utf-8")
     emitter = telemetry.TelemetryEmitter(
         output_dir=tmp_path,
         run_id=RUN_ID,
         trace_id=TRACE_ID,
         workspace_root=str(tmp_path),
     )
+    patch_file = tmp_path / "patch.diff"
+    patch_file.write_text("", encoding="utf-8")
     emitter.start_run(
         git_sha="b" * 40,
         branch="task/test",

@@ -82,7 +82,7 @@ class HardeningRunner:
 
         for art_name in OWNED_RUN_ARTIFACTS:
             art_path = os.path.join(self.output_dir, art_name)
-            if os.path.exists(art_path) and os.path.getsize(art_path) > 0:
+            if os.path.exists(art_path):
                 raise ValueError(
                     f"Output directory '{self.output_dir}' already contains evidence ({art_name}) from a prior run. "
                     "Specify a clean output directory to prevent mixing or destroying evidence."

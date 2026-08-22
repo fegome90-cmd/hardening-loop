@@ -71,7 +71,7 @@ hardening-loop telemetry <evidence_dir> [--posthog] [--api-key <key>] [--dry-run
 
 ## 4. Manifiesto Unificado v0.2 y Structured WAL (`telemetry.jsonl`)
 
-El runner genera un manifiesto criptográficamente verificable `evidence_manifest.json` respaldado por un log append-only WAL (`telemetry.jsonl`):
+El runner genera un manifiesto criptográficamente verificable `evidence_manifest.json` respaldado por un log append-only WAL (`telemetry.jsonl`) *(extracto ilustrativo y abreviado)*:
 
 ```json
 {

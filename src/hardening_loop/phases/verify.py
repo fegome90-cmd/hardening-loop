@@ -120,7 +120,6 @@ class VerifyPhase(BasePhase):
                     VerificationStatus.FAIL,
                 )
 
-        ast_valid = True
         ast_check_result = {
             "name": "target_ast_syntax_validity",
             "passed": True,
@@ -141,6 +140,7 @@ class VerifyPhase(BasePhase):
             "name": "no_dynamic_eval_or_exec",
             "passed": len(eval_exec_calls) == 0,
             "severity": "CRITICAL",
+            "category": "security_safety_check",
             "details": "No dynamic eval() or exec() calls detected"
             if not eval_exec_calls
             else "; ".join(eval_exec_calls),
@@ -171,6 +171,7 @@ class VerifyPhase(BasePhase):
             "name": "no_unconstrained_shell_execution",
             "passed": len(shell_calls) == 0,
             "severity": "HIGH",
+            "category": "security_safety_check",
             "details": "All subprocess invocations use structured arguments"
             if not shell_calls
             else "; ".join(shell_calls),
@@ -229,18 +230,18 @@ class VerifyPhase(BasePhase):
 
         passed_checks = [c for c in verification_checks if c["passed"]]
         failed_checks = [c for c in verification_checks if not c["passed"]]
-        critical_or_high_failures = [c for c in failed_checks if c["severity"] in ("CRITICAL", "HIGH")]
+        security_failures = [c for c in failed_checks if c.get("category") != "portability_warning"]
 
         # Determine Fail-Closed status
-        if not ast_valid or len(critical_or_high_failures) > 0:
+        if security_failures:
             status = VerificationStatus.FAIL
             checks.append(
-                f"[FAIL-CLOSED] Verification gate failed with {len(critical_or_high_failures)} CRITICAL/HIGH security violations"
+                f"[FAIL-CLOSED] Verification gate failed with {len(security_failures)} security violation(s)"
             )
-        elif len(failed_checks) > 0:
+        elif failed_checks:
             status = VerificationStatus.WARN
             checks.append(
-                f"Verification gate passed with {len(failed_checks)} non-blocking portability/quality warnings"
+                f"Verification gate passed with {len(failed_checks)} non-blocking portability/quality warning(s)"
             )
         else:
             status = VerificationStatus.PASS

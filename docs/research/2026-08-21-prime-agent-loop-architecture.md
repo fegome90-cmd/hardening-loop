@@ -197,13 +197,13 @@ A continuación se definen los 5 pilares arquitectónicos que deben implementars
 │   │ seq: 1            │ ───► │ seq: 2            │ ───► │ seq: 3            │ ──► ...  │
 │   │ prev: 'GENESIS'   │      │ prev: Hash(Ph 1)  │      │ prev: Hash(Ph 2)  │          │
 │   │ output_hash: H1   │      │ output_hash: H2   │      │ output_hash: H3   │          │
-│   │ signature: S1     │      │ signature: S2     │      │ signature: S3     │          │
+│   │ block_hash: B1    │      │ block_hash: B2    │      │ block_hash: B3    │          │
 │   └───────────────────┘      └───────────────────┘      └───────────────────┘          │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Cada fase genera un bloque inmutable que se valida al ingresar a la siguiente:
-$$\text{Signature}_N = \text{SHA256}\left( \text{seq}_N \parallel \text{phase}_N \parallel \text{prev\_evidence\_hash}_{N-1} \parallel \text{input\_hash}_N \parallel \text{output\_hash}_N \right)$$
+Cada fase genera un bloque inmutable cuyo digest se valida al ingresar a la siguiente:
+$$\text{BlockHash}_N = \text{SHA256}\left( \text{seq}_N \parallel \text{phase}_N \parallel \text{prev\_evidence\_hash}_{N-1} \parallel \text{input\_hash}_N \parallel \text{output\_hash}_N \right)$$
 
 ---
 
@@ -230,18 +230,18 @@ Para evitar que `SimplifyPhase` u optimizadores automáticos oscilen entre dos r
 
 ### Pilar 5: Analysis Worker Context en Memoria (RLM-Style AST Cache)
 
-Para repositorios medianos y grandes, `HardeningRunner` inicializará un `TargetContextStore` en memoria donde los árboles AST, tablas de símbolos y grafos de llamadas se parsean una sola vez y se reutilizan entre `QuestionPhase`, `DeletePhase` y `SimplifyPhase`, eliminando I/O redundante de disco.
+Para repositorios medianos y grandes, un `TargetContextStore` en memoria donde los árboles AST, tablas de símbolos y grafos de llamadas se parsean una sola vez para una instantánea inmutable del target; cualquier mutación sobre el código fuente invalida obligatoriamente dicho caché obligando a un re-parseo estricto.
 
 ---
 
 ## 6. Implementación de Referencia (Código Completo y Tipado)
 
-A continuación se detalla el código de producción listo para ser integrado en `src/hardening_loop/`.
+A continuación se detalla el código de investigación ilustrativo:
 
 ### 6.1. Extensión de Modelos: `PhaseChainLink` y `RedPreconditionBinding`
 
 ```python
-# src/hardening_loop/models.py (Extensiones)
+# src/hardening_loop/models.py (Extensiones de Investigación)
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -257,7 +257,7 @@ class PhaseChainLink:
   prev_evidence_hash: str
   input_hash: str
   output_hash: str
-  signature: str
+  block_hash: str
   timestamp: str
 
   @classmethod
@@ -276,14 +276,14 @@ class PhaseChainLink:
         "input_hash": input_hash,
         "output_hash": output_hash,
     }
-    signature = sha256_dict(payload)
+    block_hash = sha256_dict(payload)
     return cls(
         seq=seq,
         phase=phase,
         prev_evidence_hash=prev_evidence_hash,
         input_hash=input_hash,
         output_hash=output_hash,
-        signature=signature,
+        block_hash=block_hash,
         timestamp=utc_now_iso(),
     )
 
@@ -298,7 +298,7 @@ class PhaseChainLink:
         "input_hash": self.input_hash,
         "output_hash": self.output_hash,
     }
-    return self.signature == sha256_dict(payload)
+    return self.block_hash == sha256_dict(payload)
 
 
 @dataclass(frozen=True)
@@ -474,7 +474,7 @@ class HardeningRunner:
     prev_hash = (
         "GENESIS"
         if not self.chain_links
-        else self.chain_links[-1].signature  # o output_hash
+        else self.chain_links[-1].block_hash  # o output_hash
     )
 
     ctx = context or {}

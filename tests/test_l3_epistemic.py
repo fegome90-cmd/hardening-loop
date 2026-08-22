@@ -2,7 +2,6 @@
 
 import json
 import os
-import tempfile
 
 import pytest
 
@@ -18,50 +17,60 @@ from hardening_loop.runner import HardeningRunner
 from hardening_loop.states import InvalidStateTransitionError, StateMachine
 
 
-def test_canonical_manifest_reproducibility():
+def test_canonical_manifest_reproducibility(tmp_path):
     """Epistemic Invariant: sha256(canonical_manifest) run-A == run-B across independent executions."""
-    target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    target_dir = ws / "pkg"
+    target_dir.mkdir()
+    (target_dir / "__init__.py").write_text("# init\n", encoding="utf-8")
+    (target_dir / "mod.py").write_text("def run(): return 123\n", encoding="utf-8")
 
-    with tempfile.TemporaryDirectory() as out_a, tempfile.TemporaryDirectory() as out_b:
-        runner_a = HardeningRunner(target_path=target, output_dir=out_a, workspace_root="/")
-        runner_a.run_all()
+    out_a = str(ws / "out_a")
+    out_b = str(ws / "out_b")
 
-        runner_b = HardeningRunner(target_path=target, output_dir=out_b, workspace_root="/")
-        runner_b.run_all()
+    runner_a = HardeningRunner(target_path=str(target_dir), output_dir=out_a, workspace_root=str(ws))
+    runner_a.run_all()
 
-        with open(os.path.join(out_a, "evidence_manifest.json")) as f:
-            manifest_a = json.load(f)
-        with open(os.path.join(out_b, "evidence_manifest.json")) as f:
-            manifest_b = json.load(f)
+    runner_b = HardeningRunner(target_path=str(target_dir), output_dir=out_b, workspace_root=str(ws))
+    runner_b.run_all()
 
-        # The canonical manifest digest MUST be bit-identical across runs
-        assert manifest_a["canonical_manifest_digest"] == manifest_b["canonical_manifest_digest"]
-        assert len(manifest_a["canonical_manifest_digest"]) == 64
+    with open(os.path.join(out_a, "evidence_manifest.json")) as f:
+        manifest_a = json.load(f)
+    with open(os.path.join(out_b, "evidence_manifest.json")) as f:
+        manifest_b = json.load(f)
 
-        # Verify all individual canonical output hashes match
-        envs_a = manifest_a["envelopes"]
-        envs_b = manifest_b["envelopes"]
-        assert len(envs_a) == len(envs_b) == 5
+    # The canonical manifest digest MUST be bit-identical across runs
+    assert manifest_a["canonical_manifest_digest"] == manifest_b["canonical_manifest_digest"]
+    assert len(manifest_a["canonical_manifest_digest"]) == 64
 
-        for ea, eb in zip(envs_a, envs_b, strict=True):
-            ca = ea["canonical_evidence"]
-            cb = eb["canonical_evidence"]
-            assert ca["evidence_id"] == cb["evidence_id"]
-            assert ca["input_hash"] == cb["input_hash"]
-            assert ca["output_hash"] == cb["output_hash"]
-            assert ca["execution_context_hash"] == cb["execution_context_hash"]
+    # Verify all individual canonical output hashes match
+    envs_a = manifest_a["envelopes"]
+    envs_b = manifest_b["envelopes"]
+    assert len(envs_a) == len(envs_b) == 5
+
+    for ea, eb in zip(envs_a, envs_b, strict=True):
+        ca = ea["canonical_evidence"]
+        cb = eb["canonical_evidence"]
+        assert ca["evidence_id"] == cb["evidence_id"]
+        assert ca["input_hash"] == cb["input_hash"]
+        assert ca["output_hash"] == cb["output_hash"]
+        assert ca["execution_context_hash"] == cb["execution_context_hash"]
 
 
-def test_no_evidence_without_execution_context():
+def test_no_evidence_without_execution_context(tmp_path):
     """Epistemic Invariant: Evidence envelopes must declare execution context and method version."""
-    target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
-    with tempfile.TemporaryDirectory() as out_dir:
-        runner = HardeningRunner(target_path=target, output_dir=out_dir, workspace_root="/")
-        envelopes = runner.run_all()
-        for env in envelopes:
-            assert len(env.canonical.execution_context_hash) == 64
-            assert env.canonical.method_version == "v0.3"
-            assert env.canonical.schema_version == "v0.1-beta"
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    target_file = ws / "code.py"
+    target_file.write_text("def run(): pass\n", encoding="utf-8")
+
+    runner = HardeningRunner(target_path=str(target_file), output_dir=str(ws / "out"), workspace_root=str(ws))
+    envelopes = runner.run_all()
+    for env in envelopes:
+        assert len(env.canonical.execution_context_hash) == 64
+        assert env.canonical.method_version == "v0.3"
+        assert env.canonical.schema_version == "v0.1-beta"
 
 
 def test_admission_requires_human_reviewer_assertion():

@@ -15,7 +15,7 @@ VALID_TRANSITIONS: dict[HardeningState, set[HardeningState]] = {
     HardeningState.PATCH_PROPOSED: {HardeningState.VERIFIED, HardeningState.AUDITING},
     HardeningState.VERIFIED: {HardeningState.KNOWLEDGE_CANDIDATE, HardeningState.AUDITING},
     HardeningState.KNOWLEDGE_CANDIDATE: {HardeningState.ADMITTED, HardeningState.DEPRECATED},
-    HardeningState.ADMITTED: {HardeningState.READY_FOR_PR_REVIEW, HardeningState.CANONICAL, HardeningState.DEPRECATED},
+    HardeningState.ADMITTED: {HardeningState.READY_FOR_PR_REVIEW, HardeningState.DEPRECATED},
     HardeningState.READY_FOR_PR_REVIEW: {HardeningState.CANONICAL, HardeningState.DEPRECATED},
     HardeningState.CANONICAL: {HardeningState.DEPRECATED},
     HardeningState.DEPRECATED: set(),
@@ -37,6 +37,19 @@ class StateMachine:
                 f"Cannot transition WorkUnit '{work_unit.work_unit_id}' from {previous_state.value} to {target.value}. "
                 f"Valid targets: {[s.value for s in VALID_TRANSITIONS.get(previous_state, set())]}"
             )
+
+        if target == HardeningState.ADMITTED:
+            has_reviewer = bool(
+                work_unit.metadata.get("reviewer")
+                or work_unit.metadata.get("admission_status") in ("ACCEPTED", "ADMITTED")
+                or ("human" in reason.lower() and "reviewer" in reason.lower())
+            )
+            if not has_reviewer:
+                raise InvalidStateTransitionError(
+                    f"Cannot transition WorkUnit '{work_unit.work_unit_id}' to ADMITTED without "
+                    "verified human reviewer assertion or admission decision in metadata."
+                )
+
         work_unit.state = target
         work_unit.updated_at = utc_now_iso()
         if reason:

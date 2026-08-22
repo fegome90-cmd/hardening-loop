@@ -197,11 +197,11 @@ def validate_event(event: Any) -> None:
 
     schema = _load_event_schema()
     try:
-        from jsonschema import Draft202012Validator
+        from jsonschema import Draft202012Validator, FormatChecker
     except ImportError as exc:  # pragma: no cover - fail closed without jsonschema
         raise EventValidationError(f"jsonschema unavailable for fail-closed validation: {exc}") from exc
 
-    validator = Draft202012Validator(schema)
+    validator = Draft202012Validator(schema, format_checker=FormatChecker())
     errors = sorted(validator.iter_errors(event), key=lambda e: list(e.absolute_path))
     if errors:
         messages = []
@@ -281,10 +281,11 @@ class TelemetryEmitter:
         self.output_dir = os.path.realpath(os.fspath(output_dir))
         self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
         assert_within_workspace(self.output_dir, self.workspace_root)
+        os.makedirs(self.output_dir, exist_ok=True)
 
         for art_name in OWNED_RUN_ARTIFACTS:
             art_path = os.path.join(self.output_dir, art_name)
-            if os.path.exists(art_path) and os.path.getsize(art_path) > 0:
+            if os.path.exists(art_path):
                 raise ValueError(
                     f"Output directory '{self.output_dir}' already contains evidence ({art_name}) from a prior run. "
                     "Specify a clean output directory to prevent mixing or destroying evidence."
@@ -292,14 +293,19 @@ class TelemetryEmitter:
 
         wal_path = os.path.join(self.output_dir, "telemetry.jsonl")
 
-        os.makedirs(self.output_dir, exist_ok=True)
         self.run_id = run_id or f"hl_{uuid.uuid4().hex[:12]}"
         self.trace_id = trace_id or f"tr_{uuid.uuid4().hex[:16]}"
-        self.wal = WalWriter(
-            wal_path,
-            mode="a",
-            workspace_root=self.output_dir,
-        )
+        try:
+            self.wal = WalWriter(
+                wal_path,
+                mode="x",
+                workspace_root=self.output_dir,
+            )
+        except FileExistsError as exc:
+            raise FileExistsError(
+                f"Output directory '{self.output_dir}' WAL file ('telemetry.jsonl') already exists. "
+                "Exclusive ownership claim failed."
+            ) from exc
         self._artifacts: list[dict[str, str]] = []
         self._git_sha = "0" * 40
         self._dirty_worktree = False

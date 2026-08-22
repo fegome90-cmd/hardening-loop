@@ -7,6 +7,7 @@ import io
 import json
 import os
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
 import yaml
@@ -458,9 +459,9 @@ def test_t13_local_evidence_filters_by_current_run_id(tmp_path):
     emitter.output_dir = os.path.realpath(str(out_dir))
     emitter.run_id = "run-A"
     emitter._artifacts = []
-    emitter.wal = WalWriter(wal_file, mode="a", workspace_root=str(tmp_path))
-
-    emitter._write_local_evidence()
+    with WalWriter(wal_file, mode="a", workspace_root=str(tmp_path)) as wal:
+        emitter.wal = wal
+        emitter._write_local_evidence()
 
     gate_data = json.loads((out_dir / "gate_results.json").read_text(encoding="utf-8"))
     assert len(gate_data) == 1
@@ -686,8 +687,11 @@ def test_t25_current_manifest_fixtures_validate(tmp_path):
 
 def test_t26_historical_evidence_remains_historically_honest():
     """T26: Historical evidence under evidence/run-001/ is preserved without synthetic rewrite."""
-    assert os.path.exists("evidence/run-001/evidence_manifest.json")
-    historical_manifest = json.loads(open("evidence/run-001/evidence_manifest.json", encoding="utf-8").read())
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    manifest_path = os.path.join(repo_root, "evidence", "run-001", "evidence_manifest.json")
+    assert os.path.exists(manifest_path)
+    with open(manifest_path, encoding="utf-8") as fh:
+        historical_manifest = json.load(fh)
     # Historical manifest preserves historical format
     assert "canonical_manifest_digest" in historical_manifest or "work_unit" in historical_manifest
 
@@ -868,3 +872,157 @@ def test_t36_terminal_persistence_failure_remains_observable(tmp_path, monkeypat
 
     # Assert chained persistence error is observable
     assert "terminal evidence persistence failed" in str(exc_info.value)
+
+
+def test_t37_zero_byte_owned_artifact_raises_value_error(tmp_path):
+    """T37: Zero-byte owned artifact in output_dir raises ValueError regardless of size (R1)."""
+    out_dir = tmp_path / "evidence_t37"
+    out_dir.mkdir()
+    (out_dir / "diff.patch").touch()  # 0-byte file
+    target = tmp_path / "app.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+
+def test_t38_exclusive_wal_creation_fails_on_concurrent_collision(tmp_path):
+    """T38: TelemetryEmitter claims WAL with exclusive creation ('x'), failing closed on collision (R2)."""
+    out_dir = tmp_path / "evidence_t38"
+    out_dir.mkdir()
+    wal_file = out_dir / "telemetry.jsonl"
+    wal_file.write_text('{"event_name": "prior"}\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="already contains evidence"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+
+def test_t39_event_format_checker_rejects_malformed_timestamp():
+    """T39: validate_event enforces RFC 3339 date-time format via FormatChecker fail-closed (R3)."""
+    from hardening_loop.telemetry import EventValidationError, validate_event
+
+    bad_event = {
+        "schema_version": "hardening-loop.telemetry.v0.2",
+        "event_name": "hardening_run_started",
+        "timestamp": "2026-08-21 20:00:00",  # missing T and timezone
+        "run_id": "hl_test",
+        "trace_id": "tr_test",
+        "status": "STARTED",
+        "git_sha": "0" * 40,
+        "dirty_worktree": False,
+        "runner_version": "0.3.0",
+        "config_hash": "a" * 64,
+        "input_hash": "b" * 64,
+    }
+    with pytest.raises(EventValidationError, match="timestamp"):
+        validate_event(bad_event)
+
+
+def test_t40_category_based_verify_fail_closed(tmp_path):
+    """T40: VerifyPhase fails closed on non-portability check failures regardless of severity (R5)."""
+    phase = VerifyPhase()
+    target = tmp_path / "target_eval.py"
+    target.write_text("x = eval('2 + 2')\n", encoding="utf-8")
+
+    _, _, status = phase.execute(str(target), {})
+    assert status == VerificationStatus.FAIL
+
+
+def test_t41_state_machine_blocks_admitted_without_human_review():
+    """T41: StateMachine prevents transitioning to ADMITTED without human reviewer evidence and blocks ADMITTED->CANONICAL bypass (R6)."""
+    from hardening_loop.states import InvalidStateTransitionError
+
+    wu = WorkUnit(
+        work_unit_id="wu-t41",
+        target_path="app.py",
+        target_hash="c" * 64,
+        state=HardeningState.KNOWLEDGE_CANDIDATE,
+    )
+    # Transition to ADMITTED without human reviewer metadata fails
+    with pytest.raises(InvalidStateTransitionError, match="human reviewer assertion"):
+        StateMachine.transition(wu, HardeningState.ADMITTED, "Automated transition attempt")
+
+    # Transition with reviewer metadata succeeds
+    wu.metadata["reviewer"] = "Human Auditor"
+    StateMachine.transition(wu, HardeningState.ADMITTED, "Approved by human reviewer")
+    assert wu.state == HardeningState.ADMITTED
+
+    # Direct transition ADMITTED -> CANONICAL is disallowed (must pass READY_FOR_PR_REVIEW)
+    with pytest.raises(InvalidStateTransitionError):
+        StateMachine.transition(wu, HardeningState.CANONICAL, "Bypass PR review")
+
+    StateMachine.transition(wu, HardeningState.READY_FOR_PR_REVIEW, "CI tests passed")
+    StateMachine.transition(wu, HardeningState.CANONICAL, "Merged to canonical repo")
+    assert wu.state == HardeningState.CANONICAL
+
+
+def test_t42_inspect_empty_envelopes_terminal_failure_consistency(tmp_path, monkeypatch):
+    """T42: handle_inspect legitimately accepts empty envelopes on terminal failure manifests (R4)."""
+    from hardening_loop.models import sha256_dict
+    from hardening_loop.telemetry import compute_manifest_hash
+
+    out_dir = tmp_path / "evidence_t42"
+    out_dir.mkdir()
+
+    expected_digest = sha256_dict({"phases": []})
+    integrity_dict: dict[str, Any] = {
+        "hash_algorithm": "sha256",
+        "manifest_hash": "",
+        "artifact_count": 2,
+        "integrity_status": "PASS",
+    }
+    manifest_data: dict[str, Any] = {
+        "schema_version": "hardening-loop.manifest.v0.2",
+        "run_id": "hl_t42",
+        "trace_id": "tr_t42",
+        "created_at": utc_now_iso(),
+        "git_sha": "0" * 40,
+        "dirty_worktree": False,
+        "final_status": "FAIL",
+        "canonical_manifest_digest": expected_digest,
+        "work_unit": {
+            "work_unit_id": "hl_t42",
+            "target_path": "app.py",
+            "phases_executed": [],
+        },
+        "envelopes": [],
+        "artifacts": [
+            {
+                "path": "diff.patch",
+                "type": "patch",
+                "sha256": sha256_text(""),
+            },
+            {
+                "path": "telemetry.jsonl",
+                "type": "telemetry",
+                "sha256": sha256_text(""),
+            },
+        ],
+        "integrity": integrity_dict,
+        "runtime_telemetry": {
+            "timestamp": utc_now_iso(),
+            "total_duration_ms": 10.0,
+            "total_loc_analyzed": 0,
+            "throughput_loc_per_sec": 0.0,
+            "peak_memory_mb": 15.0,
+            "final_status": "FAIL",
+        },
+    }
+    integrity_dict["manifest_hash"] = compute_manifest_hash(manifest_data)
+    manifest_file = out_dir / "evidence_manifest.json"
+    manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+    (out_dir / "diff.patch").touch()
+    (out_dir / "telemetry.jsonl").touch()
+
+    out_buf = io.StringIO()
+    err_buf = io.StringIO()
+    monkeypatch.setattr("sys.stdout", out_buf)
+    monkeypatch.setattr("sys.stderr", err_buf)
+
+    exit_code = main(["inspect", str(out_dir), "--workspace-root", str(tmp_path)])
+    assert exit_code == 0, f"Inspect failed: stdout={out_buf.getvalue()}, stderr={err_buf.getvalue()}"
+    assert "INTEGRITY_PASS" in out_buf.getvalue()
+

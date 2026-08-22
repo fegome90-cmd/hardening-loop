@@ -30,6 +30,9 @@ def is_internal_framework_target(target_path: str) -> bool:
     return target_real == pkg_dir or target_real.startswith(pkg_dir + os.sep)
 
 
+_SUBPROCESS_API_NAMES: frozenset[str] = frozenset({"run", "Popen", "call", "check_output", "check_call"})
+
+
 def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
     """Finds all subprocess invocations in an AST tree, tracking module and function import aliases.
 
@@ -54,7 +57,7 @@ def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
         elif isinstance(node, ast.ImportFrom):
             if node.module == "subprocess":
                 for alias in node.names:
-                    if alias.name in ("run", "Popen", "call", "check_output", "check_call"):
+                    if alias.name in _SUBPROCESS_API_NAMES:
                         func_aliases.add(alias.asname or alias.name)
 
     calls: list[tuple[ast.Call, bool]] = []
@@ -65,7 +68,7 @@ def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
                 isinstance(node.func, ast.Attribute)
                 and isinstance(node.func.value, ast.Name)
                 and node.func.value.id in module_aliases
-                and node.func.attr in ("run", "Popen", "call", "check_output", "check_call")
+                and node.func.attr in _SUBPROCESS_API_NAMES
             ):
                 is_subp = True
             elif isinstance(node.func, ast.Name) and node.func.id in func_aliases:
