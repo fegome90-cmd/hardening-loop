@@ -14,6 +14,7 @@ import uuid
 from typing import Any
 
 from .models import utc_now_iso
+from .sandbox import assert_within_workspace
 
 # ---------------------------------------------------------------------------
 # v0.2 event validation and WAL core (fail-closed)
@@ -223,11 +224,18 @@ def sanitize_event(event: Any) -> dict[str, Any]:
 class WalWriter:
     """Write-ahead log: one deterministic JSON object per line, validated fail-closed."""
 
-    def __init__(self, path: Any, mode: str = "a") -> None:
-        self.path = os.fspath(path)
+    def __init__(self, path: Any, mode: str = "a", workspace_root: str | None = None) -> None:
+        self.path = os.path.realpath(os.fspath(path))
+        if workspace_root is not None:
+            assert_within_workspace(self.path, workspace_root)
         directory = os.path.dirname(self.path)
         if directory:
             os.makedirs(directory, exist_ok=True)
+        if mode == "w" and os.path.exists(self.path) and os.path.getsize(self.path) > 0:
+            raise ValueError(
+                f"WAL file '{self.path}' already exists and contains prior run evidence. "
+                "Refusing to truncate prior evidence."
+            )
         self._fh = open(self.path, mode, encoding="utf-8")
         self._closed = False
 
@@ -268,12 +276,19 @@ class TelemetryEmitter:
         output_dir: Any,
         run_id: str | None = None,
         trace_id: str | None = None,
+        workspace_root: str | None = None,
     ):
         self.output_dir = os.path.realpath(os.fspath(output_dir))
+        if workspace_root is not None:
+            assert_within_workspace(self.output_dir, workspace_root)
         os.makedirs(self.output_dir, exist_ok=True)
         self.run_id = run_id or f"hl_{uuid.uuid4().hex[:12]}"
         self.trace_id = trace_id or f"tr_{uuid.uuid4().hex[:16]}"
-        self.wal = WalWriter(os.path.join(self.output_dir, "telemetry.jsonl"), mode="w")
+        self.wal = WalWriter(
+            os.path.join(self.output_dir, "telemetry.jsonl"),
+            mode="a",
+            workspace_root=self.output_dir,
+        )
         self._artifacts: list[dict[str, str]] = []
         self._git_sha = "0" * 40
         self._dirty_worktree = False

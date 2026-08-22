@@ -31,17 +31,18 @@ class StateMachine:
 
     @staticmethod
     def transition(work_unit: WorkUnit, target: HardeningState, reason: str = "") -> WorkUnit:
-        if not StateMachine.can_transition(work_unit.state, target):
+        previous_state = work_unit.state
+        if not StateMachine.can_transition(previous_state, target):
             raise InvalidStateTransitionError(
-                f"Cannot transition WorkUnit '{work_unit.work_unit_id}' from {work_unit.state.value} to {target.value}. "
-                f"Valid targets: {[s.value for s in VALID_TRANSITIONS.get(work_unit.state, set())]}"
+                f"Cannot transition WorkUnit '{work_unit.work_unit_id}' from {previous_state.value} to {target.value}. "
+                f"Valid targets: {[s.value for s in VALID_TRANSITIONS.get(previous_state, set())]}"
             )
         work_unit.state = target
         work_unit.updated_at = utc_now_iso()
         if reason:
             work_unit.metadata.setdefault("transition_history", []).append(
                 {
-                    "from": work_unit.state.value,
+                    "from": previous_state.value,
                     "to": target.value,
                     "reason": reason,
                     "timestamp": work_unit.updated_at,

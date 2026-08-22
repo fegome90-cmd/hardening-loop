@@ -1,14 +1,14 @@
 # Arquitectura de Loops en Prime Agent & Transferencia Tecnológica a Hardening Loop
 
-> **Documento Normativo & Especificación Arquitectónica Exhaustiva (v2.0 — Deep Hardened)**
+> **Documento de Investigación Arquitectónica y Propuesta Técnica (No Normativo / Research Proposal)**
 > **Fecha:** 21 de Agosto de 2026
 > **Autoría / Rol:** Senior AI Systems Architect & Hardening Core Team
-> **Fuentes Primarias (SSOT):**
+> **Fuentes de Referencia:**
 > - Wiki de Orquestación W2 (`vault/orchestration-wiki/references/prime-agent/`, `systems/qwen-harness-optimizations.md`)
-> - Repositorio oficial Prime Agent (`PrimeIntellect-ai/prime-agent`)
-> - Implementación de referencia de seguridad [`qwen_safe_prime_agent.py`](file:///Users/felipe_gonzalez/.codex/skills/qwen-safe-prime-agent/scripts/qwen_safe_prime_agent.py)
-> - Código base de [`hardening-loop`](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/)
-> **Estado:** `ESTABLE / ESPECIFICACIÓN NORMATIVA VINCULANTE`
+> - Repositorio de investigación Prime Agent (`PrimeIntellect-ai/prime-agent`)
+> - Implementación de referencia de seguridad `skills/qwen-safe-prime-agent/scripts/qwen_safe_prime_agent.py`
+> - Código base de `src/hardening_loop/`
+> **Estado:** `PROPUESTA DE INVESTIGACIÓN / NO NORMATIVO (SSOT vigente: AGENTS.md y docs/spec_v0.1.md)`
 
 ---
 
@@ -215,7 +215,7 @@ Toda ejecución de tests, linters o scripts de verificación en `hardening-loop`
 
 ### Pilar 3: Invariante Red Binding en el Ciclo de Endurecimiento
 
-Ningún `KnowledgeCandidate` puede admitirse en el [KnowledgeAdmissionGate](file:///Users/felipe_gonzalez/Developer/hardening-loop/src/hardening_loop/admission.py) sin demostrar:
+Ningún `KnowledgeCandidate` puede admitirse en el [KnowledgeAdmissionGate](src/hardening_loop/admission.py) sin demostrar:
 1. **Red Precondition:** Test ejecutado sobre el target original que retorna `exit != 0` o captura el defecto (`precondition_hash`).
 2. **Green Postcondition:** Test ejecutado sobre el target endurecido que retorna `exit == 0` (`postcondition_hash`).
 3. **Scoped Boundary:** Verificación de que `git diff --name-only` afectó exclusivamente a los paths autorizados.

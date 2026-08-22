@@ -131,21 +131,11 @@ def handle_run(args: argparse.Namespace) -> int:
             final_status = aggregate_final_status(envelopes)
             if args.json:
                 manifest_path = os.path.join(output_dir, "evidence_manifest.json")
-                if os.path.exists(manifest_path):
-                    with open(manifest_path, encoding="utf-8") as mf:
-                        print(mf.read().strip())
-                else:
-                    canonical_blocks = [e.canonical.to_dict() for e in envelopes]
-                    manifest = {
-                        "schema_version": "hardening-loop.manifest.v0.2",
-                        "run_id": runner.work_unit.work_unit_id,
-                        "trace_id": f"tr_{runner.work_unit.work_unit_id}",
-                        "canonical_manifest_digest": sha256_dict({"phases": canonical_blocks}),
-                        "work_unit": runner.work_unit.to_dict(),
-                        "envelopes": [e.to_dict() for e in envelopes],
-                        "final_status": final_status,
-                    }
-                    print(json.dumps(manifest, indent=2, sort_keys=True))
+                if not os.path.exists(manifest_path):
+                    print(f"Error: Canonical manifest '{manifest_path}' was not generated (fail-closed).", file=sys.stderr)
+                    return 1
+                with open(manifest_path, encoding="utf-8") as mf:
+                    print(mf.read().strip())
             else:
                 for env in envelopes:
                     print(

@@ -51,13 +51,10 @@ def aggregate_final_status(envelopes: list[EvidenceEnvelope]) -> str:
 def count_target_loc(target_path: str) -> int:
     """Recursively calculates total lines of code across target file(s) with deterministic traversal."""
     if not os.path.exists(target_path):
-        return 0
+        raise ValueError(f"Target path does not exist: {target_path}")
     if os.path.isfile(target_path):
-        try:
-            with open(target_path, encoding="utf-8") as f:
-                return len(f.readlines())
-        except Exception:
-            return 0
+        with open(target_path, encoding="utf-8") as f:
+            return len(f.readlines())
 
     total = 0
     for root, dirs, files in os.walk(target_path):
@@ -65,11 +62,8 @@ def count_target_loc(target_path: str) -> int:
         for file in sorted(files):
             if file.endswith(".py"):
                 full_p = os.path.join(root, file)
-                try:
-                    with open(full_p, encoding="utf-8") as f:
-                        total += len(f.readlines())
-                except Exception:
-                    continue
+                with open(full_p, encoding="utf-8") as f:
+                    total += len(f.readlines())
     return total
 
 
@@ -81,12 +75,25 @@ class HardeningRunner:
         self.output_dir = os.path.abspath(output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
 
-        manifest_path = os.path.join(self.output_dir, "evidence_manifest.json")
-        if os.path.exists(manifest_path):
-            raise ValueError(
-                f"Output directory '{self.output_dir}' already contains evidence manifest from a prior run. "
-                "Specify a clean output directory to prevent mixing or destroying evidence."
-            )
+        owned_artifacts = (
+            "evidence_manifest.json",
+            "telemetry.jsonl",
+            "work_unit.json",
+            "requirements_audit.json",
+            "deletion_candidates.json",
+            "diff.patch",
+            "contract_diff.json",
+            "test_results.json",
+            "knowledge_candidate.yaml",
+            "admission_record.json",
+        )
+        for art_name in owned_artifacts:
+            art_path = os.path.join(self.output_dir, art_name)
+            if os.path.exists(art_path) and os.path.getsize(art_path) > 0:
+                raise ValueError(
+                    f"Output directory '{self.output_dir}' already contains evidence ({art_name}) from a prior run. "
+                    "Specify a clean output directory to prevent mixing or destroying evidence."
+                )
 
         target_hash = compute_canonical_directory_digest(self.target_path)
         run_id = f"wu-{target_hash[:12] if target_hash else '000000000000'}"
