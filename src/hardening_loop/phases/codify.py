@@ -89,13 +89,14 @@ class CodifyPhase(BasePhase):
                 rationale = dc.get("rationale", "Dead or overprivileged capability identified.")
                 action = dc.get("action", "DELETE_OR_REFACTOR")
                 sev_str = dc.get("severity", "MEDIUM")
-                severity = (
-                    FindingSeverity.CRITICAL
-                    if sev_str == "CRITICAL"
-                    else FindingSeverity.HIGH
-                    if sev_str == "HIGH"
-                    else FindingSeverity.MEDIUM
-                )
+                try:
+                    severity = FindingSeverity(sev_str)
+                except ValueError:
+                    return (
+                        {"error": f"Invalid severity '{sev_str}' in deletion candidate for '{target_str}'"},
+                        [f"Invalid severity '{sev_str}' (fail-closed)"],
+                        VerificationStatus.FAIL,
+                    )
                 category = (
                     FindingCategory.SECURITY
                     if "shell" in target_str or "eval" in target_str or "exec" in target_str
@@ -154,11 +155,21 @@ class CodifyPhase(BasePhase):
                 details = vf.get("details", "Safety invariant violated.")
                 rule_id = f"RULE-VERIFY-{sha256_text(chk_name)[:6].upper()}"
                 cid = f"kc-{sha256_text(rule_id + chk_name)[:12]}"
-                raw_sev = vf.get("severity", "HIGH")
+                raw_sev = vf.get("severity")
+                if not raw_sev:
+                    return (
+                        {"error": f"Missing severity in verify failure for '{chk_name}'"},
+                        [f"Missing verify failure severity in '{chk_name}' (fail-closed)"],
+                        VerificationStatus.FAIL,
+                    )
                 try:
                     vf_sev = FindingSeverity(raw_sev)
                 except ValueError:
-                    vf_sev = FindingSeverity.HIGH
+                    return (
+                        {"error": f"Invalid severity '{raw_sev}' for verify failure '{chk_name}'"},
+                        [f"Unrecognized verify failure severity '{raw_sev}' (fail-closed)"],
+                        VerificationStatus.FAIL,
+                    )
 
                 candidates.append(
                     KnowledgeAdmissionGate.create_candidate(

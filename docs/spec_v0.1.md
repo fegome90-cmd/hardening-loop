@@ -112,7 +112,7 @@ El runner genera un manifiesto criptográficamente verificable `evidence_manifes
 ```
 
 > [!NOTE]
-> **Modelo de Amenazas de Integridad (Anti-Ferrari):** `manifest_hash` proporciona detección determinista de corrupción accidental, inconsistencias internas de serialización y desincronización parcial entre artefactos y el manifiesto. No pretende sustituir firmas asimétricas con manejo de claves privadas (HMAC/PKI) cuando el atacante posee permisos totales de reescritura.
+> **Modelo de Amenazas de Integridad (Anti-Ferrari):** `manifest_hash` proporciona detección determinista de corrupción accidental, inconsistencias internas de serialización y desincronización parcial entre los artefactos físicos y el manifiesto. Los hashes SHA-256 de los artefactos verifican la inmutabilidad de cada archivo individual. Este mecanismo autocontenido no pretende sustituir autenticación criptográfica con claves secretas (como HMAC simétrico o firmas digitales asimétricas basadas en infraestructura PKI) cuando un atacante posee permisos totales de reescritura sobre el sistema de archivos local.
 
 ---
 

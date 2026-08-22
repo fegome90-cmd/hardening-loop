@@ -23,10 +23,7 @@ def _collect_direct_returns(node: ast.AST) -> list[ast.Return]:
 def infer_return_type(fn_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     """Infers the return type of a function definition via annotations or direct AST Return nodes."""
     if fn_node.returns:
-        try:
-            return ast.unparse(fn_node.returns)
-        except (ValueError, TypeError, RecursionError):
-            return "Annotated"
+        return ast.unparse(fn_node.returns)
 
     return_types: set[str] = set()
     direct_returns = _collect_direct_returns(fn_node)

@@ -21,13 +21,13 @@ from ..schema_validator import SchemaValidator
 
 
 def is_internal_framework_target(target_path: str) -> bool:
-    """Accurately checks if target_path is the internal hardening_loop framework module."""
-    try:
-        pkg_dir = os.path.realpath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-        target_real = os.path.realpath(target_path)
-        return target_real == pkg_dir or target_real.startswith(pkg_dir + os.sep)
-    except (OSError, ValueError):
-        return False
+    """Accurately checks if target_path is the internal hardening_loop framework module.
+
+    Fails closed: path resolution errors propagate directly rather than silently returning False.
+    """
+    pkg_dir = os.path.realpath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    target_real = os.path.realpath(target_path)
+    return target_real == pkg_dir or target_real.startswith(pkg_dir + os.sep)
 
 
 def find_subprocess_calls(tree: ast.AST) -> list[tuple[ast.Call, bool]]:

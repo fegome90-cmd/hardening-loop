@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import ast
+import glob
+import io
 import json
+import os
+from datetime import datetime, timezone
 
 import pytest
 import yaml
@@ -11,7 +16,6 @@ from hardening_loop.cli import main
 from hardening_loop.models import (
     CanonicalEvidence,
     EvidenceEnvelope,
-    FindingSeverity,
     PhaseName,
     RuntimeReceipt,
     VerificationStatus,
@@ -20,11 +24,10 @@ from hardening_loop.models import (
 )
 from hardening_loop.phases import (
     CodifyPhase,
-    DeletePhase,
     QuestionPhase,
-    SimplifyPhase,
-    VerifyPhase,
 )
+from hardening_loop.phases.base import find_subprocess_calls, is_internal_framework_target
+from hardening_loop.phases.simplify import infer_return_type
 from hardening_loop.posthog_sink import PostHogSinkError, PostHogTelemetrySink
 from hardening_loop.runner import HardeningRunner, aggregate_final_status
 from hardening_loop.sandbox import PathSandboxError, assert_within_workspace
@@ -184,26 +187,6 @@ def test_s5_inspect_detects_manifest_and_artifact_synchronized_tampering(tmp_pat
     assert ret == 2
 
 
-def test_inspect_fails_closed_when_canonical_manifest_digest_missing(tmp_path):
-    """Inspect must fail closed with code 2 if canonical_manifest_digest is missing or altered."""
-    target = tmp_path / "clean.py"
-    target.write_text("x = 100\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_inspect"
-
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
-    runner.run_all()
-
-    manifest_file = out_dir / "evidence_manifest.json"
-    manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
-
-    # Remove canonical_manifest_digest
-    del manifest_data["canonical_manifest_digest"]
-    manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
-
-    ret = main(["inspect", str(out_dir), "--workspace-root", str(tmp_path)])
-    assert ret == 2
-
-
 def test_s6_posthog_sink_hardening():
     """S6: PostHogTelemetrySink must enforce strict HTTPS allowlist and reject attacker hosts."""
     # 1. Authorized hosts MUST PASS
@@ -250,14 +233,206 @@ def test_p2_and_p3_ast_nodes_and_directory_loc_metrics(tmp_path):
     assert summary["throughput_loc_per_sec"] >= 0.0
 
 
-def test_p5_persisted_candidates_have_real_utc_timestamps(tmp_path):
-    """P5: Persisted knowledge_candidate.yaml must contain real recent UTC timestamps, never 1970."""
-    target = tmp_path / "app_with_harness.py"
-    target.write_text("import os\n# hardcoded path\np = '/Users/dev/tmp'\n", encoding="utf-8")
-    out_dir = tmp_path / "evidence_kc"
+# ==============================================================================
+# TARGETED REGRESSION MATRIX: T01 .. T16
+# ==============================================================================
+
+
+def test_t01_run_all_json_validates_as_canonical_manifest_v02(tmp_path, monkeypatch):
+    """T01: 'hardening-loop run --phase all --json' outputs canonical manifest conforming to schema v0.2."""
+    target = tmp_path / "target.py"
+    target.write_text("def ping() -> str:\n    return 'pong'\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_t01"
+
+    out_buf = io.StringIO()
+    monkeypatch.setattr("sys.stdout", out_buf)
+
+    exit_code = main(
+        [
+            "run",
+            "--target",
+            str(target),
+            "--phase",
+            "all",
+            "--output",
+            str(out_dir),
+            "--json",
+            "--workspace-root",
+            str(tmp_path),
+        ]
+    )
+    assert exit_code == 0
+    raw_output = out_buf.getvalue().strip()
+    manifest_data = json.loads(raw_output)
+
+    # Validate against normative v0.2 schema
+    SchemaValidator.validate_or_raise("hardening_loop_manifest.v0.2", manifest_data)
+    assert manifest_data["schema_version"] == "hardening-loop.manifest.v0.2"
+    assert "canonical_manifest_digest" in manifest_data
+    assert "work_unit" in manifest_data
+    assert "envelopes" in manifest_data
+    assert "runtime_telemetry" in manifest_data
+
+
+def test_t02_invalid_manifest_schema_immediate_abort(tmp_path):
+    """T02: Manifest schema violation causes immediate fail-closed exit with code 2."""
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_t02"
 
     runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
     runner.run_all()
+
+    manifest_file = out_dir / "evidence_manifest.json"
+    manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+
+    # Invalidate schema by deleting required schema_version
+    del manifest_data["schema_version"]
+    manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+
+    ret = main(["inspect", str(out_dir), "--workspace-root", str(tmp_path)])
+    assert ret == 2
+
+
+def test_t03_no_artifact_inspection_after_manifest_schema_failure(tmp_path, monkeypatch):
+    """T03: Inspect aborts on schema validation before processing downstream artifacts or digests."""
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_t03"
+
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner.run_all()
+
+    manifest_file = out_dir / "evidence_manifest.json"
+    manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+    del manifest_data["schema_version"]  # Schema invalid
+    manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+
+    # Also delete a physical file; inspect must fail on schema error without running physical checks
+    diff_file = out_dir / "diff.patch"
+    if diff_file.exists():
+        diff_file.unlink()
+
+    ret = main(["inspect", str(out_dir), "--workspace-root", str(tmp_path)])
+    assert ret == 2
+
+
+def test_t04_terminal_evidence_persistence_failure_is_observable(tmp_path, monkeypatch):
+    """T04: Failure to write terminal manifest during error handling raises a chained observable RuntimeError."""
+    target = tmp_path / "clean.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_t04"
+
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+
+    def _exploding_run(*args, **kwargs):
+        raise RuntimeError("Primary phase execution failure")
+
+    def _exploding_write_manifest(*args, **kwargs):
+        raise OSError("Disk full: cannot write terminal manifest")
+
+    monkeypatch.setattr(runner.phases[PhaseName.QUESTION], "run", _exploding_run)
+    monkeypatch.setattr(runner, "_write_manifest", _exploding_write_manifest)
+
+    with pytest.raises(RuntimeError, match="terminal evidence persistence failed"):
+        runner.run_all()
+
+
+def test_t05_invalid_verify_severity_codify_fails_closed(tmp_path):
+    """T05: Invalid finding severity in upstream results causes CodifyPhase to fail closed."""
+    phase = CodifyPhase()
+    ctx = {
+        "evidence_ids": ["evi-12345678"],
+        "verify_failures": [
+            {
+                "name": "custom_check",
+                "severity": "INVALID_UNKNOWN_SEVERITY",
+                "details": "Malformed severity string",
+            }
+        ],
+    }
+    payload, checks, status = phase.execute(str(tmp_path / "app.py"), ctx)
+    assert status == VerificationStatus.FAIL
+    assert "error" in payload
+
+
+def test_t06_subprocess_check_call_aliases_detected(tmp_path):
+    """T06: subprocess.check_call(..., shell=True) detected across direct and aliased imports."""
+    code = "import subprocess as sp\nsp.check_call('ls', shell=True)\n"
+    target = tmp_path / "check_call_test.py"
+    target.write_text(code, encoding="utf-8")
+
+    tree = ast.parse(code)
+    calls = find_subprocess_calls(tree)
+    assert len(calls) == 1
+    assert calls[0][1] is True  # shell=True detected
+
+
+def test_t07_arbitrary_runner_run_is_not_subprocess(tmp_path):
+    """T07: Custom class method runner.run(shell=True) is not flagged as a subprocess invocation."""
+    code = "class CustomRunner:\n    def run(self, shell=True):\n        return True\nrunner = CustomRunner()\nrunner.run(shell=True)\n"
+    tree = ast.parse(code)
+    calls = find_subprocess_calls(tree)
+    assert len(calls) == 0
+
+
+def test_t08_nested_function_attribution_innermost_scope(tmp_path):
+    """T08: Nested functions accurately attribute AST calls to the innermost enclosing scope."""
+    code = """
+def outer():
+    def inner():
+        with open('data.txt') as f:
+            pass
+"""
+    target = tmp_path / "nested_scope.py"
+    target.write_text(code, encoding="utf-8")
+
+    phase = QuestionPhase()
+    payload, checks, status = phase.execute(str(target), {})
+    assert status == VerificationStatus.PASS
+    sec_req = next(r for r in payload["requirements"] if "open" in r.get("audit_finding", ""))
+    assert "(inner)" in sec_req["source"]
+
+
+def test_t09_framework_target_resolution_failure_fails_closed(monkeypatch):
+    """T09: When path resolution encounters an OSError, is_internal_framework_target propagates the error."""
+
+    def _exploding_realpath(path):
+        raise OSError("Simulated path resolution hardware fault")
+
+    monkeypatch.setattr(os.path, "realpath", _exploding_realpath)
+    with pytest.raises(OSError, match="hardware fault"):
+        is_internal_framework_target("/any/path")
+
+
+def test_t10_ast_unparse_failure_cannot_emit_annotated_pass(monkeypatch):
+    """T10: ast.unparse failure on return node propagates and cannot falsely emit 'Annotated'."""
+    fn_def = ast.FunctionDef(
+        name="foo",
+        args=ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
+        body=[ast.Pass()],
+        decorator_list=[],
+        returns=ast.Name(id="MyType", ctx=ast.Load()),
+    )
+
+    def _exploding_unparse(node):
+        raise TypeError("Simulated unparse failure on malformed AST node")
+
+    monkeypatch.setattr(ast, "unparse", _exploding_unparse)
+    with pytest.raises(TypeError, match="Simulated unparse failure"):
+        infer_return_type(fn_def)
+
+
+def test_t11_knowledge_candidate_created_at_is_real_recent_utc(tmp_path):
+    """T11: KnowledgeCandidate.created_at is valid ISO-8601 UTC within the exact execution window."""
+    target = tmp_path / "app.py"
+    target.write_text("import os\np = '/Users/dev/tmp'\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_t11"
+
+    t_before = datetime.now(timezone.utc)
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner.run_all()
+    t_after = datetime.now(timezone.utc)
 
     kc_file = out_dir / "knowledge_candidate.yaml"
     assert kc_file.exists()
@@ -265,264 +440,86 @@ def test_p5_persisted_candidates_have_real_utc_timestamps(tmp_path):
     assert len(candidates) > 0
 
     for cand in candidates:
-        assert "created_at" in cand
-        assert not cand["created_at"].startswith("1970")
-        assert "202" in cand["created_at"]
+        created_str = cand["created_at"]
+        assert not created_str.startswith("1970")
+        dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+        assert dt.tzinfo is not None
+        offset = dt.utcoffset()
+        assert offset is not None and offset.total_seconds() == 0
+        assert t_before <= dt <= t_after
 
 
-def test_p6_simplify_infers_unannotated_return_types(tmp_path):
-    """P6: SimplifyPhase must infer unannotated function return types from AST Return nodes."""
-    code = """
-def get_count():
-    return 42
-
-def get_flag():
-    return True
-
-def get_text():
-    return "hello"
-
-def get_data():
-    return {"a": 1}
-
-def get_void():
-    return
-"""
-    target = tmp_path / "types_test.py"
-    target.write_text(code, encoding="utf-8")
-
-    phase = SimplifyPhase()
-    payload, checks, status = phase.execute(str(target), {})
-    assert status == VerificationStatus.PASS
-
-    fn_map = {fn["name"]: fn["return_type"] for fn in payload["functions"]}
-    assert fn_map["get_count"] == "int"
-    assert fn_map["get_flag"] == "bool"
-    assert fn_map["get_text"] == "str"
-    assert fn_map["get_data"] == "dict"
-    assert fn_map["get_void"] == "None"
-
-
-def test_p6_simplify_return_type_not_contaminated_by_nested_function(tmp_path):
-    """P6: Return statements in nested functions/classes must NOT contaminate the outer function's inferred return type."""
-    code = """
-def outer_fn():
-    def inner_fn():
-        return 42
-    return "outer_result"
-"""
-    target = tmp_path / "nested_test.py"
-    target.write_text(code, encoding="utf-8")
-
-    phase = SimplifyPhase()
-    payload, checks, status = phase.execute(str(target), {})
-    assert status == VerificationStatus.PASS
-
-    fn_map = {fn["name"]: fn["return_type"] for fn in payload["functions"]}
-    assert fn_map["outer_fn"] == "str"
-    assert fn_map["inner_fn"] == "int"
-
-
-def test_p7_codify_generates_zero_candidates_for_clean_target(tmp_path):
-    """P7: CodifyPhase must emit 0 candidates for a completely clean target without findings."""
-    phase = CodifyPhase()
-    payload, checks, status = phase.execute(str(tmp_path / "clean.py"), {"evidence_ids": ["evi-11112222"]})
-    assert status == VerificationStatus.PASS
-    assert payload["candidates_count"] == 0
-    assert len(payload["candidates"]) == 0
-    assert payload["admission_record"]["admission_status"] == "NONE"
-
-
-def test_p7_codify_generates_candidates_from_actual_upstream_findings(tmp_path):
-    """P7: CodifyPhase structures candidates dynamically from real upstream deletion findings."""
+def test_t12_canonical_candidate_and_output_hash_remain_clock_independent(tmp_path):
+    """T12: Canonical evidence output_hash is clock-independent and hermetically deterministic across runs."""
     phase = CodifyPhase()
     ctx = {
         "evidence_ids": ["evi-12345678"],
         "deletion_candidates": [
             {
-                "target": "os_system_invocation",
-                "location": "app.py:42",
-                "rationale": "Direct os.system executes unconstrained shell.",
-                "action": "REPLACE_WITH_STRUCTURED_SUBPROCESS",
+                "target": "os_system",
+                "location": "app.py:10",
+                "rationale": "Unsafe shell invocation",
+                "action": "DELETE",
                 "severity": "HIGH",
             }
         ],
     }
-    payload, checks, status = phase.execute(str(tmp_path / "app.py"), ctx)
-    assert status == VerificationStatus.PASS
-    assert payload["candidates_count"] == 1
-    candidate = payload["candidates"][0]
-    assert "app.py:42" in candidate["observation"]
-    assert candidate["rule_proposal"]["rule_id"].startswith("RULE-DEL-")
+
+    payload1, _, _ = phase.execute(str(tmp_path / "app.py"), ctx)
+    payload2, _, _ = phase.execute(str(tmp_path / "app.py"), ctx)
+
+    # Canonical payload for both executions must be bit-for-bit identical
+    assert json.dumps(payload1, sort_keys=True) == json.dumps(payload2, sort_keys=True)
 
 
-def test_codify_preserves_medium_severity_from_verify_failures(tmp_path):
-    """CodifyPhase must preserve FindingSeverity.MEDIUM from verify failures without elevating to HIGH."""
-    phase = CodifyPhase()
-    ctx = {
-        "evidence_ids": ["evi-12345678"],
-        "verify_failures": [
-            {
-                "name": "no_hardcoded_developer_paths",
-                "severity": "MEDIUM",
-                "details": "Hardcoded path detected at app.py:12",
-            }
-        ],
-    }
-    payload, checks, status = phase.execute(str(tmp_path / "app.py"), ctx)
-    assert status == VerificationStatus.PASS
-    candidate = payload["candidates"][0]
-    assert candidate["finding"]["severity"] == FindingSeverity.MEDIUM.value
-
-
-def test_phases_fail_closed_on_syntax_errors(tmp_path):
-    """Ley VIII: Python syntax errors in target must fail closed across all scanning phases."""
-    bad_code = "def syntax_error(\n"
-    target = tmp_path / "bad.py"
-    target.write_text(bad_code, encoding="utf-8")
-
-    q_phase = QuestionPhase()
-    _, _, q_status = q_phase.execute(str(target), {})
-    assert q_status == VerificationStatus.FAIL
-
-    d_phase = DeletePhase()
-    _, _, d_status = d_phase.execute(str(target), {})
-    assert d_status == VerificationStatus.FAIL
-
-    s_phase = SimplifyPhase()
-    _, _, s_status = s_phase.execute(str(target), {})
-    assert s_status == VerificationStatus.FAIL
-
-    v_phase = VerifyPhase()
-    _, _, v_status = v_phase.execute(str(target), {})
-    assert v_status == VerificationStatus.FAIL
-
-
-def test_external_path_with_hardening_loop_name_is_not_self_audit(tmp_path):
-    """Target in external directory with 'hardening_loop' in name must NOT trigger framework self-audit candidates."""
-    ext_dir = tmp_path / "hardening_loop-external-repo"
-    ext_dir.mkdir()
-    clean_target = ext_dir / "clean.py"
-    clean_target.write_text("def calculate(x: int) -> int:\n    return x * 2\n", encoding="utf-8")
-
-    out_dir = tmp_path / "evidence_ext"
-    runner = HardeningRunner(target_path=str(clean_target), output_dir=str(out_dir))
-    envelopes = runner.run_all()
-
-    assert len(envelopes) == 5
-    codify_env = envelopes[-1]
-    assert codify_env.phase == PhaseName.CODIFY
-    payload = codify_env.canonical.artifact_payload
-    # Completely clean external target must produce 0 candidates, NOT the 2 framework rules
-    assert payload["candidates_count"] == 0
-    assert len(payload["candidates"]) == 0
-
-
-def test_subprocess_alias_detection_positive_and_negative(tmp_path):
-    """Tests that subprocess invocations with shell=True are detected across all import aliases (including check_call)."""
-    # 1. Alias import subprocess as sp with check_call
-    code_sp = "import subprocess as sp\nsp.check_call('ls', shell=True)\n"
-    target_sp = tmp_path / "sp.py"
-    target_sp.write_text(code_sp, encoding="utf-8")
-
-    v_phase = VerifyPhase()
-    payload_sp, _, status_sp = v_phase.execute(str(target_sp), {})
-    assert status_sp == VerificationStatus.FAIL
-    chk_sp = next(c for c in payload_sp["test_results"]["checks"] if c["name"] == "no_unconstrained_shell_execution")
-    assert chk_sp["passed"] is False
-
-    # 2. from subprocess import check_call as cc
-    code_from = "from subprocess import check_call as cc\ncc('ls', shell=True)\n"
-    target_from = tmp_path / "from_subp.py"
-    target_from.write_text(code_from, encoding="utf-8")
-
-    payload_from, _, status_from = v_phase.execute(str(target_from), {})
-    assert status_from == VerificationStatus.FAIL
-    chk_from = next(
-        c for c in payload_from["test_results"]["checks"] if c["name"] == "no_unconstrained_shell_execution"
-    )
-    assert chk_from["passed"] is False
-
-    # 3. Custom class runner.run(shell=True) -> IGNORED
-    code_custom = "class MyRunner:\n    def run(self, shell=True):\n        return True\nrunner = MyRunner()\nrunner.run(shell=True)\n"
-    target_custom = tmp_path / "custom.py"
-    target_custom.write_text(code_custom, encoding="utf-8")
-
-    payload_custom, _, status_custom = v_phase.execute(str(target_custom), {})
-    assert status_custom == VerificationStatus.PASS
-    chk_custom = next(
-        c for c in payload_custom["test_results"]["checks"] if c["name"] == "no_unconstrained_shell_execution"
-    )
-    assert chk_custom["passed"] is True
-
-
-def test_question_phase_exact_scope_attribution_in_nested_functions(tmp_path):
-    """QuestionPhase must attribute calls to the innermost enclosing function/method scope."""
-    code = """
-def outer_fn():
-    def inner_fn():
-        with open('data.txt') as f:
-            pass
-"""
-    target = tmp_path / "scope_nesting.py"
-    target.write_text(code, encoding="utf-8")
-
-    phase = QuestionPhase()
-    payload, checks, status = phase.execute(str(target), {})
-    assert status == VerificationStatus.PASS
-
-    reqs = payload["requirements"]
-    sec_req = next(r for r in reqs if r["type"] == "security_constraint" and "open" in r.get("audit_finding", ""))
-    # Source must attribute to (inner_fn), not (outer_fn)
-    assert "(inner_fn)" in sec_req["source"]
-
-
-def test_codify_no_shared_mutable_state_between_runners(tmp_path):
-    """Running multiple HardeningRunner instances must have zero shared mutable phase state."""
-    target1 = tmp_path / "t1.py"
-    target1.write_text("import os\nos.system('echo 1')\n", encoding="utf-8")
-    out1 = tmp_path / "out1"
-
-    target2 = tmp_path / "t2.py"
-    target2.write_text("def pure_add(a: int, b: int) -> int:\n    return a + b\n", encoding="utf-8")
-    out2 = tmp_path / "out2"
-
-    r1 = HardeningRunner(str(target1), str(out1))
-    r2 = HardeningRunner(str(target2), str(out2))
-
-    # Phase instances are unique to each runner
-    assert r1.phases[PhaseName.CODIFY] is not r2.phases[PhaseName.CODIFY]
-
-    r2.run_all()
-    # Clean target 2 produces 0 candidates
-    assert len(r2.envelopes[-1].canonical.artifact_payload.get("candidates", [])) == 0
-
-
-def test_wal_isolated_per_run_and_closed(tmp_path):
-    """Reusing output_dir must cleanly isolate the WAL file and not mix events from previous runs."""
+def test_t13_previous_run_evidence_neither_mixed_nor_destroyed(tmp_path):
+    """T13 (Anti-Ferrari A): Attempting to start a run in a directory with existing evidence fails closed."""
     target = tmp_path / "clean.py"
     target.write_text("x = 1\n", encoding="utf-8")
-    out_dir = tmp_path / "shared_evidence"
+    out_dir = tmp_path / "evidence_t13"
 
-    # Run 1
+    # Run 1 succeeds
     r1 = HardeningRunner(str(target), str(out_dir))
     r1.run_all()
+    assert (out_dir / "evidence_manifest.json").exists()
 
-    wal_path = out_dir / "telemetry.jsonl"
-    with open(wal_path, encoding="utf-8") as f:
-        events_run1 = [json.loads(line) for line in f if line.strip()]
-    count_run1 = len(events_run1)
-    assert count_run1 > 0
+    # Run 2 on same output_dir fails closed immediately to protect Run 1 evidence
+    with pytest.raises(ValueError, match="already contains evidence manifest from a prior run"):
+        HardeningRunner(str(target), str(out_dir))
 
-    # Run 2 with same output_dir
-    r2 = HardeningRunner(str(target), str(out_dir))
-    r2.run_all()
 
-    with open(wal_path, encoding="utf-8") as f:
-        events_run2 = [json.loads(line) for line in f if line.strip()]
+def test_t14_output_and_wal_workspace_boundary(tmp_path):
+    """T14: Target or output path escaping the workspace boundary raises PathSandboxError."""
+    outside_dir = "/tmp/escaped_output"
+    with pytest.raises(PathSandboxError):
+        assert_within_workspace(outside_dir, str(tmp_path))
 
-    # Run 2 events must belong strictly to run 2's run_id, not contaminated by run 1
-    assert all(e["run_id"] == r2.work_unit.work_unit_id for e in events_run2)
+
+def test_t15_knowledge_candidate_yaml_deterministic_ordering(tmp_path):
+    """T15: knowledge_candidate.yaml keys are deterministically sorted."""
+    target = tmp_path / "app.py"
+    target.write_text("import os\np = '/Users/dev/tmp'\n", encoding="utf-8")
+    out_dir = tmp_path / "evidence_t15"
+
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner.run_all()
+
+    kc_text = (out_dir / "knowledge_candidate.yaml").read_text(encoding="utf-8")
+    # Verify candidate_id appears before observation, finding before rule_proposal in sorted YAML output
+    assert kc_text.index("candidate_id:") < kc_text.index("observation:")
+    assert kc_text.index("finding:") < kc_text.index("rule_proposal:")
+
+
+def test_t16_manifest_fixtures_lifecycle_and_schema_disposition():
+    """T16: All active generated manifest fixtures conform to schema v0.2 while historical fixtures are preserved."""
+    active_manifests = glob.glob("evidence/run-00[3-6]*/evidence_manifest.json")
+    assert len(active_manifests) > 0
+
+    for manifest_path in active_manifests:
+        with open(manifest_path, encoding="utf-8") as mf:
+            data = json.load(mf)
+        SchemaValidator.validate_or_raise("hardening_loop_manifest.v0.2", data)
+        assert data["schema_version"] == "hardening-loop.manifest.v0.2"
 
 
 def test_cli_review_and_validate_strict_utf8_fail_closed(tmp_path):

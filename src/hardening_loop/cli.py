@@ -13,7 +13,6 @@ from .models import (
     AdmissionStatus,
     PhaseName,
     sha256_dict,
-    utc_now_iso,
 )
 from .posthog_sink import PostHogSinkError, PostHogTelemetrySink
 from .runner import HardeningRunner, aggregate_final_status
@@ -131,15 +130,22 @@ def handle_run(args: argparse.Namespace) -> int:
             envelopes = runner.run_all()
             final_status = aggregate_final_status(envelopes)
             if args.json:
-                canonical_blocks = [e.canonical.to_dict() for e in envelopes]
-                manifest = {
-                    "canonical_manifest_digest": sha256_dict({"phases": canonical_blocks}),
-                    "work_unit": runner.work_unit.to_dict(),
-                    "envelopes": [e.to_dict() for e in envelopes],
-                    "completed_at": utc_now_iso(),
-                    "final_status": final_status,
-                }
-                print(json.dumps(manifest, indent=2, sort_keys=True))
+                manifest_path = os.path.join(output_dir, "evidence_manifest.json")
+                if os.path.exists(manifest_path):
+                    with open(manifest_path, encoding="utf-8") as mf:
+                        print(mf.read().strip())
+                else:
+                    canonical_blocks = [e.canonical.to_dict() for e in envelopes]
+                    manifest = {
+                        "schema_version": "hardening-loop.manifest.v0.2",
+                        "run_id": runner.work_unit.work_unit_id,
+                        "trace_id": f"tr_{runner.work_unit.work_unit_id}",
+                        "canonical_manifest_digest": sha256_dict({"phases": canonical_blocks}),
+                        "work_unit": runner.work_unit.to_dict(),
+                        "envelopes": [e.to_dict() for e in envelopes],
+                        "final_status": final_status,
+                    }
+                    print(json.dumps(manifest, indent=2, sort_keys=True))
             else:
                 for env in envelopes:
                     print(
@@ -268,12 +274,8 @@ def handle_inspect(args: argparse.Namespace) -> int:
         tamper_detected = False
         tamper_details: list[str] = []
 
-        # 1. Validate manifest against normative JSON schema
-        try:
-            SchemaValidator.validate_or_raise("hardening_loop_manifest.v0.2", manifest)
-        except SchemaValidationError as e:
-            tamper_detected = True
-            tamper_details.append(f"Manifest schema validation violation: {e}")
+        # 1. Validate manifest against normative JSON schema (fail-closed)
+        SchemaValidator.validate_or_raise("hardening_loop_manifest.v0.2", manifest)
 
         # 2. Cryptographically verify manifest integrity hash over the entire document
         is_hash_valid, hash_msg = verify_manifest_integrity(manifest)

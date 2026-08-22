@@ -81,6 +81,13 @@ class HardeningRunner:
         self.output_dir = os.path.abspath(output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
 
+        manifest_path = os.path.join(self.output_dir, "evidence_manifest.json")
+        if os.path.exists(manifest_path):
+            raise ValueError(
+                f"Output directory '{self.output_dir}' already contains evidence manifest from a prior run. "
+                "Specify a clean output directory to prevent mixing or destroying evidence."
+            )
+
         target_hash = compute_canonical_directory_digest(self.target_path)
         run_id = f"wu-{target_hash[:12] if target_hash else '000000000000'}"
         trace_id = f"tr_{run_id}"
@@ -306,7 +313,7 @@ class HardeningRunner:
 
             p1 = os.path.join(self.output_dir, "knowledge_candidate.yaml")
             with open(p1, "w", encoding="utf-8") as f:
-                yaml.dump(materialized, f, sort_keys=False, allow_unicode=True)
+                yaml.dump(materialized, f, sort_keys=True, allow_unicode=True)
             self.emitter.write_artifact(p1, artifact_type="evidence")
 
             p2 = os.path.join(self.output_dir, "admission_record.json")
@@ -376,8 +383,10 @@ class HardeningRunner:
                     input_hash=self.work_unit.target_hash if self.work_unit.target_hash else sha256_text(""),
                 )
                 self._write_manifest("FAIL")
-            except Exception:
-                pass
+            except Exception as term_exc:
+                raise RuntimeError(
+                    f"Execution failed with {exc} and terminal evidence persistence failed with {term_exc}"
+                ) from exc
             raise
         finally:
             self.emitter.close()
