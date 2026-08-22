@@ -226,8 +226,8 @@ class WalWriter:
 
     def __init__(self, path: Any, mode: str = "a", workspace_root: str | None = None) -> None:
         self.path = os.path.realpath(os.fspath(path))
-        if workspace_root is not None:
-            assert_within_workspace(self.path, workspace_root)
+        self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
+        assert_within_workspace(self.path, self.workspace_root)
         directory = os.path.dirname(self.path)
         if directory:
             os.makedirs(directory, exist_ok=True)
@@ -279,13 +279,27 @@ class TelemetryEmitter:
         workspace_root: str | None = None,
     ):
         self.output_dir = os.path.realpath(os.fspath(output_dir))
-        if workspace_root is not None:
-            assert_within_workspace(self.output_dir, workspace_root)
+        self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
+        assert_within_workspace(self.output_dir, self.workspace_root)
+
+        wal_path = os.path.join(self.output_dir, "telemetry.jsonl")
+        if os.path.exists(wal_path) and os.path.getsize(wal_path) > 0:
+            raise ValueError(
+                f"Output directory '{self.output_dir}' already contains a non-empty WAL ('telemetry.jsonl'). "
+                "Specify a clean output directory to prevent mixing or destroying evidence."
+            )
+        manifest_path = os.path.join(self.output_dir, "evidence_manifest.json")
+        if os.path.exists(manifest_path) and os.path.getsize(manifest_path) > 0:
+            raise ValueError(
+                f"Output directory '{self.output_dir}' already contains an evidence manifest. "
+                "Specify a clean output directory to prevent mixing or destroying evidence."
+            )
+
         os.makedirs(self.output_dir, exist_ok=True)
         self.run_id = run_id or f"hl_{uuid.uuid4().hex[:12]}"
         self.trace_id = trace_id or f"tr_{uuid.uuid4().hex[:16]}"
         self.wal = WalWriter(
-            os.path.join(self.output_dir, "telemetry.jsonl"),
+            wal_path,
             mode="a",
             workspace_root=self.output_dir,
         )
@@ -568,7 +582,9 @@ class TelemetryEmitter:
         with open(wal_path, encoding="utf-8") as wal_file:
             for line in wal_file:
                 if line.strip():
-                    events.append(json.loads(line))
+                    ev = json.loads(line)
+                    if ev.get("run_id") == self.run_id:
+                        events.append(ev)
 
         gate_events = [
             event

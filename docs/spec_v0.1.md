@@ -41,7 +41,7 @@ El **Algorithmic Code Hardening Loop** es un marco de endurecimiento determinist
 | **`question`** | Código objetivo, especificaciones | `requirements_audit.json` | Clasificación de requerimientos en `explicit`, `inferred`, `historical`, `security_constraint`. Atribución AST exacta `archivo:línea (scope)`. |
 | **`delete`** | Audit de requerimientos, código | `deletion_candidates.json`, `diff.patch`, `rollback_ref` | Detección y poda de invocaciones `os.system`, `subprocess shell=True`, `eval`/`exec` y paths absolutos hardcodeados. |
 | **`simplify`** | Código tras eliminación, diffs | `contract_diff.json` | Inferencia y preservación de tipos de retorno (`infer_return_type`) e interfaces públicas. |
-| **`verify`** | Target / patch aplicado | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Verificación AST estática target-centric. Falla cerrado (`FAIL`) ante errores de sintaxis o vulnerabilidades `CRITICAL`/`HIGH`. |
+| **`verify`** | Target / patch aplicado | `test_results.json`, `benchmark.json`, `runtime_evidence.json` | Verificación AST estática target-centric. Falla cerrado (`FAIL`) ante errores de sintaxis o violaciones de seguridad `CRITICAL`/`HIGH` (`eval`/`exec`, `shell=True`, core invariants). Emite advertencia (`WARN`) no bloqueante ante problemas de portabilidad/calidad (`paths_check` `MEDIUM`/`LOW`). |
 | **`codify`** | Hallazgos verificados y evidencias | `knowledge_candidate.yaml`, `admission_record.json` | Extracción dinámica de reglas candidatas estructuradas en estado `PENDING_REVIEW` listas para la Aduana. |
 
 ---

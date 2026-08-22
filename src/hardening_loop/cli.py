@@ -117,7 +117,7 @@ def handle_run(args: argparse.Namespace) -> int:
         print(f"Path Sandbox Violation: {e}", file=sys.stderr)
         return 2
 
-    runner = HardeningRunner(target_path=target, output_dir=output_dir)
+    runner = HardeningRunner(target_path=target, output_dir=output_dir, workspace_root=args.workspace_root)
 
     try:
         if not args.quiet and not args.json:

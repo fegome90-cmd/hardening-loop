@@ -51,7 +51,7 @@ def test_s1_run_all_halts_immediately_on_verify_fail(tmp_path):
     target.write_text("import os\nos.system('echo unsafe')\n", encoding="utf-8")
     out_dir = tmp_path / "evidence"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     envelopes = runner.run_all()
 
     executed_phases = [e.phase for e in envelopes]
@@ -107,7 +107,7 @@ def test_s4_inspect_detects_physical_artifact_tampering_on_disk(tmp_path):
     out_dir = tmp_path / "evidence_run"
 
     # 1. Run full hardening loop
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     # 2. Inspect clean evidence directory -> MUST PASS
@@ -129,7 +129,7 @@ def test_s4_inspect_detects_path_traversal_escape_in_manifest(tmp_path):
     target.write_text("x = 1\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_run"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     manifest_file = out_dir / "evidence_manifest.json"
@@ -149,7 +149,7 @@ def test_s5_manifest_integrity_hash_verified_and_schema_compliant(tmp_path):
     target.write_text("def ping() -> str:\n    return 'pong'\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_run"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     manifest_path = out_dir / "evidence_manifest.json"
@@ -171,7 +171,7 @@ def test_s5_inspect_detects_manifest_and_artifact_synchronized_tampering(tmp_pat
     target.write_text("x = 42\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_run"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     # Tamper with file
@@ -371,15 +371,33 @@ def test_t06_telemetry_inside_workspace_passes(tmp_path):
 
 
 def test_t07_telemetry_outside_workspace_fails_before_write(tmp_path):
-    """T07: TelemetryEmitter outside workspace boundary fails closed before creating directory or file."""
+    """T07: TelemetryEmitter outside workspace boundary fails closed before creating directory or file,
+
+    both with default workspace_root and explicit workspace_root.
+    """
     outside_dir = "/tmp/outside_telemetry_t07"
+
+    # 1. Default workspace_root (os.getcwd) fails closed
+    with pytest.raises(PathSandboxError):
+        TelemetryEmitter(output_dir=outside_dir)
+
+    # 2. Explicit workspace_root fails closed
     with pytest.raises(PathSandboxError):
         TelemetryEmitter(output_dir=outside_dir, workspace_root=str(tmp_path))
 
 
 def test_t08_wal_path_escape_fails(tmp_path):
-    """T08: WalWriter escaping workspace boundary raises PathSandboxError before opening file."""
+    """T08: WalWriter escaping workspace boundary raises PathSandboxError before opening file,
+
+    both with default workspace_root and explicit workspace_root.
+    """
     outside_file = "/tmp/escaped_wal.jsonl"
+
+    # 1. Default workspace_root fails closed
+    with pytest.raises(PathSandboxError):
+        WalWriter(outside_file, mode="a")
+
+    # 2. Explicit workspace_root fails closed
     with pytest.raises(PathSandboxError):
         WalWriter(outside_file, mode="a", workspace_root=str(tmp_path))
 
@@ -391,14 +409,14 @@ def test_t09_second_run_cannot_alter_first_run_evidence(tmp_path):
     out_dir = tmp_path / "evidence_t09"
 
     # Run 1 succeeds
-    r1 = HardeningRunner(str(target), str(out_dir))
+    r1 = HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
     r1.run_all()
     manifest_bytes_run1 = (out_dir / "evidence_manifest.json").read_bytes()
     wal_bytes_run1 = (out_dir / "telemetry.jsonl").read_bytes()
 
     # Run 2 on same output_dir fails closed immediately
     with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir))
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
 
     # Assert Run 1 bytes were not modified or truncated
     assert (out_dir / "evidence_manifest.json").read_bytes() == manifest_bytes_run1
@@ -406,22 +424,29 @@ def test_t09_second_run_cannot_alter_first_run_evidence(tmp_path):
 
 
 def test_t10_orphan_wal_cannot_be_truncated(tmp_path):
-    """T10: An orphan non-empty telemetry.jsonl in output directory prevents new runs and cannot be truncated."""
+    """T10: An orphan non-empty telemetry.jsonl in output directory prevents new runs and cannot be truncated,
+
+    both via direct TelemetryEmitter and HardeningRunner.
+    """
     out_dir = tmp_path / "orphan_dir"
     out_dir.mkdir()
     wal_file = out_dir / "telemetry.jsonl"
     wal_file.write_text('{"orphan_event": true}\n', encoding="utf-8")
     wal_hash_before = sha256_text(wal_file.read_text(encoding="utf-8"))
 
-    # HardeningRunner rejects directory with orphan WAL
+    # 1. Direct TelemetryEmitter rejects directory with non-empty WAL
+    with pytest.raises(ValueError, match="already contains a non-empty WAL"):
+        TelemetryEmitter(output_dir=str(out_dir), workspace_root=str(tmp_path))
+
+    # 2. HardeningRunner rejects directory with orphan WAL
     target = tmp_path / "clean.py"
     target.write_text("x = 1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir))
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
 
-    # WalWriter with mode='w' refuses to truncate existing non-empty WAL
+    # 3. WalWriter with mode='w' refuses to truncate existing non-empty WAL
     with pytest.raises(ValueError, match="Refusing to truncate prior evidence"):
-        WalWriter(str(wal_file), mode="w")
+        WalWriter(str(wal_file), mode="w", workspace_root=str(tmp_path))
 
     assert sha256_text(wal_file.read_text(encoding="utf-8")) == wal_hash_before
 
@@ -435,7 +460,7 @@ def test_t11_partial_evidence_dir_cannot_be_overwritten(tmp_path):
     target = tmp_path / "clean.py"
     target.write_text("x = 1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="already contains evidence"):
-        HardeningRunner(str(target), str(out_dir))
+        HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
 
 
 def test_t12_loc_invalid_utf8_fails_closed(tmp_path):
@@ -469,7 +494,7 @@ def test_t15_current_manifest_fixtures_validate(tmp_path):
     target.write_text("def ping() -> str:\n    return 'pong'\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_t15"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     manifest_path = out_dir / "evidence_manifest.json"
@@ -493,7 +518,7 @@ def test_t17_transition_fixture_provenance_is_valid(tmp_path):
     target.write_text("x = 1\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_t17"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     history = runner.work_unit.metadata.get("transition_history", [])
@@ -576,7 +601,7 @@ def test_t22_manifest_self_hash_and_artifact_verification(tmp_path):
     target.write_text("x = 100\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_t22"
 
-    runner = HardeningRunner(str(target), str(out_dir))
+    runner = HardeningRunner(str(target), str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     manifest_data = json.loads((out_dir / "evidence_manifest.json").read_text(encoding="utf-8"))
@@ -599,7 +624,7 @@ def test_t24_candidate_created_at_is_real_recent_utc(tmp_path):
     target.write_text("p = '/Users/dev/tmp_secret'\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_t24"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
     runner.run_all()
 
     kc_file = out_dir / "knowledge_candidate.yaml"
@@ -644,7 +669,7 @@ def test_t26_terminal_persistence_failure_remains_observable(tmp_path, monkeypat
     target.write_text("x = 1\n", encoding="utf-8")
     out_dir = tmp_path / "evidence_t26"
 
-    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir))
+    runner = HardeningRunner(target_path=str(target), output_dir=str(out_dir), workspace_root=str(tmp_path))
 
     # Force failure during terminal write_manifest
     def _failing_write_manifest(*args, **kwargs):

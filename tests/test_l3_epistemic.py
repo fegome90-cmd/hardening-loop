@@ -23,10 +23,10 @@ def test_canonical_manifest_reproducibility():
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
 
     with tempfile.TemporaryDirectory() as out_a, tempfile.TemporaryDirectory() as out_b:
-        runner_a = HardeningRunner(target_path=target, output_dir=out_a)
+        runner_a = HardeningRunner(target_path=target, output_dir=out_a, workspace_root="/")
         runner_a.run_all()
 
-        runner_b = HardeningRunner(target_path=target, output_dir=out_b)
+        runner_b = HardeningRunner(target_path=target, output_dir=out_b, workspace_root="/")
         runner_b.run_all()
 
         with open(os.path.join(out_a, "evidence_manifest.json")) as f:
@@ -56,7 +56,7 @@ def test_no_evidence_without_execution_context():
     """Epistemic Invariant: Evidence envelopes must declare execution context and method version."""
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
     with tempfile.TemporaryDirectory() as out_dir:
-        runner = HardeningRunner(target_path=target, output_dir=out_dir)
+        runner = HardeningRunner(target_path=target, output_dir=out_dir, workspace_root="/")
         envelopes = runner.run_all()
         for env in envelopes:
             assert len(env.canonical.execution_context_hash) == 64

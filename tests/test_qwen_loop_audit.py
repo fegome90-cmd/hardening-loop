@@ -25,7 +25,7 @@ REAL_SCRIPT = "/Users/felipe_gonzalez/Developer/examen_grado/scripts/qwen-tool-l
 def test_qwen_tool_loop_full_hardening_cycle(target_path):
     target = os.path.abspath(target_path)
     with tempfile.TemporaryDirectory() as out_dir:
-        runner = HardeningRunner(target_path=target, output_dir=out_dir)
+        runner = HardeningRunner(target_path=target, output_dir=out_dir, workspace_root="/")
         envelopes = runner.run_all()
 
         assert len(envelopes) == 5

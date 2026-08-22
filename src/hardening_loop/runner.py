@@ -27,6 +27,7 @@ from .phases.delete import DeletePhase
 from .phases.question import QuestionPhase
 from .phases.simplify import SimplifyPhase
 from .phases.verify import VerifyPhase
+from .sandbox import assert_within_workspace
 from .states import StateMachine
 from .telemetry import TelemetryCollector, TelemetryEmitter
 
@@ -70,9 +71,12 @@ def count_target_loc(target_path: str) -> int:
 class HardeningRunner:
     """Coordinates execution of the Algorithmic Code Hardening Loop."""
 
-    def __init__(self, target_path: str, output_dir: str):
-        self.target_path = os.path.abspath(target_path)
-        self.output_dir = os.path.abspath(output_dir)
+    def __init__(self, target_path: str, output_dir: str, workspace_root: str | None = None):
+        self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
+        self.target_path = os.path.realpath(os.path.abspath(target_path))
+        self.output_dir = os.path.realpath(os.path.abspath(output_dir))
+        assert_within_workspace(self.target_path, self.workspace_root)
+        assert_within_workspace(self.output_dir, self.workspace_root)
         os.makedirs(self.output_dir, exist_ok=True)
 
         owned_artifacts = (
@@ -112,7 +116,12 @@ class HardeningRunner:
         )
         self.envelopes: list[EvidenceEnvelope] = []
         self.telemetry = TelemetryCollector()
-        self.emitter = TelemetryEmitter(output_dir=self.output_dir, run_id=run_id, trace_id=trace_id)
+        self.emitter = TelemetryEmitter(
+            output_dir=self.output_dir,
+            run_id=run_id,
+            trace_id=trace_id,
+            workspace_root=self.workspace_root,
+        )
         self._emitter_run_started = False
 
         # Cache git context once per runner instance for stable provenance snapshot

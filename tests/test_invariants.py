@@ -40,10 +40,10 @@ def test_hermetic_reproducibility_run_a_vs_run_b():
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
 
     with tempfile.TemporaryDirectory() as out_a, tempfile.TemporaryDirectory() as out_b:
-        runner_a = HardeningRunner(target_path=target, output_dir=out_a)
+        runner_a = HardeningRunner(target_path=target, output_dir=out_a, workspace_root="/")
         envelopes_a = runner_a.run_all()
 
-        runner_b = HardeningRunner(target_path=target, output_dir=out_b)
+        runner_b = HardeningRunner(target_path=target, output_dir=out_b, workspace_root="/")
         envelopes_b = runner_b.run_all()
 
         assert len(envelopes_a) == len(envelopes_b) == 5
@@ -61,7 +61,7 @@ def test_hermetic_reproducibility_run_a_vs_run_b():
 def test_admission_gate_bypass_prevention():
     """Invariant: A WorkUnit can never transition to ADMITTED or CANONICAL skipping review."""
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
-    runner = HardeningRunner(target_path=target, output_dir="/tmp/dummy")
+    runner = HardeningRunner(target_path=target, output_dir="/tmp/dummy", workspace_root="/")
 
     assert runner.work_unit.state == HardeningState.DRAFT
 
@@ -77,7 +77,7 @@ def test_admission_gate_bypass_prevention():
 def test_envelope_provenance_schema_fields():
     target = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "hardening_loop"))
     with tempfile.TemporaryDirectory() as out_dir:
-        runner = HardeningRunner(target_path=target, output_dir=out_dir)
+        runner = HardeningRunner(target_path=target, output_dir=out_dir, workspace_root="/")
         envelopes = runner.run_all()
         for env in envelopes:
             d = env.to_dict()

@@ -111,7 +111,7 @@ def test_event_with_noncanonical_phase_fails_validation() -> None:
 
 def test_wal_writes_readable_jsonl(tmp_path: Path) -> None:
     telemetry = telemetry_module()
-    wal = telemetry.WalWriter(tmp_path / "telemetry.jsonl")
+    wal = telemetry.WalWriter(tmp_path / "telemetry.jsonl", workspace_root=str(tmp_path))
     wal.append(make_event())
     wal.append(make_event("hardening_run_completed", status="PASS"))
     wal.close()
@@ -129,6 +129,7 @@ def test_manifest_generates_sha256_hashes(tmp_path: Path) -> None:
         output_dir=tmp_path,
         run_id=RUN_ID,
         trace_id=TRACE_ID,
+        workspace_root=str(tmp_path),
     )
     emitter.write_artifact(artifact, artifact_type="patch")
     emitter.write_manifest(final_status="PASS")
@@ -146,6 +147,7 @@ def test_manifest_fails_when_obligatory_artifact_is_missing(tmp_path: Path) -> N
         output_dir=tmp_path,
         run_id=RUN_ID,
         trace_id=TRACE_ID,
+        workspace_root=str(tmp_path),
     )
     with pytest.raises((EventValidationError, ValueError, FileNotFoundError, jsonschema.ValidationError)):
         emitter.write_manifest(
@@ -187,6 +189,7 @@ def test_synthetic_complete_run_writes_wal_and_manifest(tmp_path: Path) -> None:
         output_dir=tmp_path,
         run_id=RUN_ID,
         trace_id=TRACE_ID,
+        workspace_root=str(tmp_path),
     )
     emitter.start_run(
         git_sha="b" * 40,

@@ -142,34 +142,37 @@ class VerifyPhase(BasePhase):
             "name": "no_hardcoded_developer_paths",
             "passed": len(hardcoded_paths) == 0,
             "severity": "MEDIUM",
+            "category": "portability_warning",
             "details": "No hardcoded absolute developer paths found"
             if not hardcoded_paths
             else f"Hardcoded paths detected at: {', '.join(hardcoded_paths)}",
         }
 
-        # Compile all safety checks
-        safety_checks = [ast_check_result, eval_exec_check, shell_check, paths_check]
+        # Compile all verification checks (security safety checks + portability quality checks)
+        verification_checks = [ast_check_result, eval_exec_check, shell_check, paths_check]
 
         # 5. If self-auditing hardening_loop core, verify framework governance invariants
         if is_internal_framework_target(target_path):
             combined_code = "\n".join(sources.values())
             has_gate = "KnowledgeAdmissionGate" in combined_code
             has_envelope = "EvidenceEnvelope" in combined_code
-            safety_checks.append(
+            verification_checks.append(
                 {
                     "name": "framework_admission_gate_intact",
                     "passed": has_gate,
                     "severity": "CRITICAL",
+                    "category": "security_safety_check",
                     "details": "KnowledgeAdmissionGate class is intact and active"
                     if has_gate
                     else "Missing KnowledgeAdmissionGate",
                 }
             )
-            safety_checks.append(
+            verification_checks.append(
                 {
                     "name": "framework_evidence_envelope_intact",
                     "passed": has_envelope,
                     "severity": "HIGH",
+                    "category": "security_safety_check",
                     "details": "EvidenceEnvelope dataclass is intact and active"
                     if has_envelope
                     else "Missing EvidenceEnvelope",
@@ -178,8 +181,8 @@ class VerifyPhase(BasePhase):
 
         verification_duration_ms = round((time.perf_counter() - t0) * 1000, 3)
 
-        passed_checks = [c for c in safety_checks if c["passed"]]
-        failed_checks = [c for c in safety_checks if not c["passed"]]
+        passed_checks = [c for c in verification_checks if c["passed"]]
+        failed_checks = [c for c in verification_checks if not c["passed"]]
         critical_or_high_failures = [c for c in failed_checks if c["severity"] in ("CRITICAL", "HIGH")]
 
         # Determine Fail-Closed status
@@ -190,10 +193,12 @@ class VerifyPhase(BasePhase):
             )
         elif len(failed_checks) > 0:
             status = VerificationStatus.WARN
-            checks.append(f"Verification gate passed with {len(failed_checks)} non-blocking warnings")
+            checks.append(
+                f"Verification gate passed with {len(failed_checks)} non-blocking portability/quality warnings"
+            )
         else:
             status = VerificationStatus.PASS
-            checks.append(f"All {len(safety_checks)} target safety checks passed verification")
+            checks.append(f"All {len(verification_checks)} target verification checks passed")
 
         payload = {
             "target": target_path,
@@ -201,10 +206,10 @@ class VerifyPhase(BasePhase):
             "total_ast_nodes_visited": total_ast_nodes,
             "total_lines_of_code": total_loc,
             "test_results": {
-                "total_checks": len(safety_checks),
+                "total_checks": len(verification_checks),
                 "passed_checks": len(passed_checks),
                 "failed_checks": len(failed_checks),
-                "checks": safety_checks,
+                "checks": verification_checks,
                 "fast_feedback_passed": verification_duration_ms < 5000.0,
             },
             "benchmark": {
